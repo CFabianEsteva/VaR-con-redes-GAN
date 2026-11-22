@@ -1,0 +1,7 @@
+{
+  "filas_totales": 500,
+  "filas_distintas_batch_128": 128,
+  "filas_distintas_batch_500": 500,
+  "fit_usa_ruido_normal": true,
+  "sample_usa_ruido_uniforme": true
+}
