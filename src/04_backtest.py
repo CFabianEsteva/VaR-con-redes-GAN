@@ -8,9 +8,6 @@ import utils
 MODELS = {
     "GAN propia": "var_gan.csv",
     "Monte Carlo": "var_montecarlo.csv",
-    # Verificación con la GAN de la librería (solo si se ejecutó 02_var_redes_gan_libreria.py)
-    "GAN librería (defecto)": "var_gan_lib_defecto.csv",
-    "GAN librería (corregida)": "var_gan_lib_corregida.csv",
 }
 
 
@@ -34,8 +31,6 @@ def backtest(df: pd.DataFrame) -> dict:
 def main():
     res = {}
     for name, fname in MODELS.items():
-        if not (config.RESULTS_DIR / fname).exists():
-            continue
         df = pd.read_csv(config.RESULTS_DIR / fname, index_col=0, parse_dates=True)
         res[name] = backtest(df)
     summary = pd.DataFrame(res).T

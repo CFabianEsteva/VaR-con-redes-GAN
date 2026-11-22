@@ -1,5 +1,0 @@
-# Entorno gan_lib (Python 3.11) - solo para src/02_var_redes_gan_libreria.py y src/verifica_libreria.py
-# conda create -n gan_lib python=3.11 && pip install -r requirements_gan_lib.txt
-ydata-synthetic==1.4.0
-pandas
-scipy

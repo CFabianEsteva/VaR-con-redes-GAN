@@ -19,8 +19,6 @@ CORE = ["GAN propia", "Monte Carlo"]
 
 
 def main():
-    # El finalista se elige solo entre los modelos del proyecto; las variantes con la GAN de
-    # librería (verificación) se analizan aparte en el notebook 05.
     bt = pd.read_csv(config.RESULTS_DIR / "backtest_resumen.csv", index_col=0).loc[CORE]
     r = utils.load_returns().values
     hist_port = utils.portfolio_return(utils.train_window(r, 0))

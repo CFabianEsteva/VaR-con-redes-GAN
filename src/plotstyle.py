@@ -11,7 +11,6 @@ import config
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
 ASSET_COLORS = dict(zip(config.TICKERS, [BLUE, ORANGE, AQUA]))
 C_GAN, C_MC, C_HIST = BLUE, ORANGE, "#8a8984"
-C_LIB_FIX, C_LIB_DEF = AQUA, "#eda100"   # GAN de librería: variante corregida / por defecto
 C_ALERT = "#e34948"          # excepciones del backtest (con marcador distinto al de la serie)
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e6e5e1"
 
