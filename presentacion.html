@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VaR de mercado con Redes GAN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+:root{--navy:#0E1630;--panel:#17224A;--paper:#F4F2EC;--card:#FBFAF6;--ink:#121A33;--soft:#4A5472;--fog:#EEF2FA;--mist:#A9B5D2;--blue:#5B9BFF;--blue-d:#1E5BC6;--blue-m:#3D7BE0;--orange:#F28A52;--orange-d:#B9501C;--orange-m:#E0773F;--red:#FF6B6B;--red-d:#C2363B;--teal:#34CDBE;--teal-d:#14857A;--line:#DCD8CE;--royal:#1E4FC2;--disp:'Space Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;--text:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#060A18;overflow:hidden;font-family:var(--text)}
+#viewport{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#stage{position:relative;width:1920px;height:1080px;flex:none;perspective:2600px;transform-origin:center center}
+.slide{position:absolute;inset:0;padding:110px 128px 150px;display:flex;flex-direction:column;gap:36px;background:var(--paper);color:var(--ink);opacity:0;pointer-events:none;visibility:hidden;transform:translateX(16%) rotateY(-26deg) translateZ(-280px);transition:transform .85s cubic-bezier(.2,.75,.2,1),opacity .6s ease,visibility 0s .85s;overflow:hidden}
+.slide.past{transform:translateX(-16%) rotateY(26deg) translateZ(-280px)}
+.slide.active{opacity:1;pointer-events:auto;visibility:visible;transform:none;transition:transform .85s cubic-bezier(.2,.75,.2,1),opacity .6s ease,visibility 0s}
+.dark{background:radial-gradient(ellipse at 70% 40%,#16224A 0%,#0E1630 60%);color:var(--fog)}
+.accent{background:var(--royal);color:var(--fog)}
+.center{justify-content:center}
+h1,h2,h3{font-family:var(--disp);margin:0}
+h1{font-size:112px;font-weight:700;line-height:1.02;letter-spacing:-3px}
+h2{font-size:68px;font-weight:600;line-height:1.08;letter-spacing:-1.5px}
+h3{font-size:40px;font-weight:600;line-height:1.12;letter-spacing:-.5px}
+p{font-size:30px;line-height:1.35;margin:0}
+.eyebrow{font-size:22px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:var(--blue-d)}
+.dark .eyebrow{color:var(--blue)}.accent .eyebrow{color:#BFD3FF}
+.soft{color:var(--soft)}.dark .soft{color:var(--mist)}.accent .soft{color:#D5E1FF}
+.small{font-size:24px;line-height:1.38}
+.lead{font-family:var(--disp);font-size:42px;line-height:1.2;font-weight:500}
+.statement{font-family:var(--disp);font-size:92px;font-weight:700;line-height:1.06;letter-spacing:-2px}
+.c-blue{color:var(--blue-d)}.c-orange{color:var(--orange-d)}.c-red{color:var(--red-d)}.c-teal{color:var(--teal-d)}
+.dark .c-blue{color:var(--blue)}.dark .c-orange{color:var(--orange)}.dark .c-red{color:var(--red)}.dark .c-teal{color:var(--teal)}
+.head{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:32px}.col{display:flex;flex-direction:column;gap:20px}.grow{flex:1;min-height:0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:36px;display:flex;flex-direction:column;gap:14px;box-shadow:0 10px 40px rgba(18,26,51,.08)}
+.dark .card{background:rgba(23,34,74,.85);border-color:rgba(255,255,255,.10);box-shadow:0 18px 50px rgba(0,0,0,.35)}
+.big{font-family:var(--disp);font-size:112px;font-weight:700;line-height:1;letter-spacing:-2px}
+.mid{font-family:var(--disp);font-size:66px;font-weight:700;line-height:1;letter-spacing:-1px}
+.num{font-family:var(--disp);font-size:42px;font-weight:700;line-height:1}
+.label{font-size:22px;font-weight:600;letter-spacing:2px;text-transform:uppercase}
+.pill{display:inline-block;font-size:22px;font-weight:600;padding:10px 22px;border-radius:999px;background:#E6E2D7}
+.dark .pill{background:rgba(255,255,255,.10)}
+.foot{position:absolute;left:128px;bottom:58px;font-size:22px;color:var(--soft)}
+.dark .foot{color:var(--mist)}.accent .foot{color:#D5E1FF}
+.hint{font-size:22px;color:var(--mist);display:block}
+.hint b{font-weight:600;color:var(--fog)}
+.slide:not(.dark) .hint{color:var(--soft)}.slide:not(.dark) .hint b{color:var(--ink)}
+canvas{display:block}
+/* controles */
+.btn{font:600 24px var(--text);padding:12px 26px;border-radius:999px;border:2px solid currentColor;background:transparent;color:inherit;cursor:pointer;transition:background .2s,color .2s,transform .15s}
+.btn:hover{transform:translateY(-2px)}
+.btn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.dark .btn.on{background:var(--fog);color:var(--navy);border-color:var(--fog)}
+.chip{font:600 24px var(--text);padding:12px 24px 12px 18px;border-radius:999px;border:2px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:var(--fog);cursor:pointer;display:flex;gap:12px;align-items:center;transition:opacity .2s}
+.chip i{width:20px;height:20px;border-radius:50%;display:block}
+.chip.off{opacity:.38}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:10px;border-radius:6px;background:#DCD8CE;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:40px;height:40px;border-radius:50%;background:var(--blue-d);border:5px solid #FBFAF6;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+input[type=range]::-moz-range-thumb{width:32px;height:32px;border-radius:50%;background:var(--blue-d);border:5px solid #FBFAF6}
+/* animaciones */
+@keyframes rise{from{opacity:0;transform:translateY(30px)}}
+@keyframes barin{from{opacity:0;transform:scaleY(0)}}
+.slide.active .in{animation:rise .75s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*110ms + 250ms)}
+.slide.active .bar{animation:barin .9s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*80ms + 300ms);transform-origin:bottom}
+.step{opacity:0;transform:translateY(24px);transition:opacity .45s ease,transform .45s ease}
+.step.on{opacity:1;transform:none}
+.tilt{transition:transform .25s ease,box-shadow .25s ease;transform-style:preserve-3d;will-change:transform}
+/* tablas */
+table.tbl{border-collapse:collapse;width:100%;font-size:28px}
+.tbl th{text-align:left;font-size:22px;letter-spacing:2px;text-transform:uppercase;color:var(--soft);padding:14px 18px;border-bottom:2px solid var(--ink)}
+.tbl td{padding:18px;border-bottom:1px solid var(--line)}
+.tbl .r{text-align:right;white-space:nowrap}
+.dark .tbl th{color:var(--mist);border-color:var(--fog)}.dark .tbl td{border-color:rgba(255,255,255,.12)}
+.tbl tr.total td{font-weight:700;border-bottom:none}
+.clock3d{transform:perspective(1200px) rotateY(-24deg) rotateX(10deg);animation:float 6s ease-in-out infinite;filter:drop-shadow(0 40px 50px rgba(0,0,0,.55))}
+@keyframes float{50%{transform:perspective(1200px) rotateY(-12deg) rotateX(5deg) translateY(-16px)}}
+.clock3d .sec{transform-origin:200px 200px;animation:tick 60s steps(60) infinite}
+@keyframes tick{to{transform:rotate(360deg)}}
+.flip{perspective:1400px;cursor:pointer;min-height:0}
+.flip .fi{position:relative;width:100%;height:100%;transition:transform .8s cubic-bezier(.2,.75,.2,1);transform-style:preserve-3d}
+.flip.on .fi{transform:rotateY(180deg)}
+.flip .fa,.flip .fb{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:22px;padding:22px 30px;display:flex;flex-direction:column;gap:12px;justify-content:center}
+.flip .fa{background:var(--card);border:1px solid var(--line);box-shadow:0 10px 40px rgba(18,26,51,.08);transition:border-color .2s}
+.flip:hover .fa{border-color:#9AA6C4}
+.flip .fb{transform:rotateY(180deg);gap:6px;box-shadow:0 18px 50px rgba(18,26,51,.25)}
+.fb.real{background:#0E1630;color:#EEF2FA}.fb.fake{background:linear-gradient(135deg,#1E5BC6,#4C8DF0);color:#EEF2FA}
+/* HUD */
+#bar{position:fixed;left:0;top:0;height:4px;background:linear-gradient(90deg,#5B9BFF,#F28A52);transition:width .6s ease;z-index:20}
+#hud{position:fixed;left:0;right:0;bottom:0;height:64px;display:flex;align-items:center;gap:14px;padding:0 22px;color:#D5DDF0;font:500 15px var(--text);background:linear-gradient(transparent,rgba(4,7,18,.85));z-index:20;transition:opacity .4s}
+#hud.hide{opacity:0}
+#hud button{font:600 15px var(--text);color:#EEF2FA;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:8px 14px;cursor:pointer}
+#hud button:hover{background:rgba(255,255,255,.2)}
+#hud .sp{flex:1}
+#who{font-weight:600;letter-spacing:.5px}
+#notes{position:fixed;left:50%;bottom:76px;transform:translateX(-50%);width:min(980px,92vw);max-height:38vh;overflow:auto;background:rgba(10,15,34,.94);color:#EEF2FA;border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:22px 26px;font:400 18px/1.55 var(--text);z-index:21;display:none;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+#notes.show{display:block}
+#notes b{color:#9CC2FF}
+#menu{position:fixed;inset:0;background:rgba(4,7,18,.86);backdrop-filter:blur(8px);z-index:30;display:none;align-items:center;justify-content:center}
+#menu.show{display:flex}
+#menu ol{columns:2;column-gap:56px;font:500 19px/1.4 var(--text);color:#EEF2FA;padding:0;margin:0;list-style:none;counter-reset:m}
+#menu li{counter-increment:m;padding:9px 14px;border-radius:10px;cursor:pointer;break-inside:avoid}
+#menu li::before{content:counter(m);display:inline-block;width:38px;color:#8FA3CF;font-weight:700}
+#menu li:hover,#menu li.cur{background:rgba(91,155,255,.18)}
+#menu li small{display:block;margin-left:38px;color:#8FA3CF;font-size:14px}
+#tip{position:fixed;pointer-events:none;z-index:25;background:rgba(10,15,34,.95);color:#EEF2FA;border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:12px 16px;font:400 16px/1.5 var(--text);box-shadow:0 12px 36px rgba(0,0,0,.4);display:none;max-width:380px}
+#tip b{font-weight:700}
+body.still .slide,body.still .slide *{transition:none!important;animation:none!important}
+#help{position:fixed;right:22px;top:18px;z-index:20;color:#8FA3CF;font:500 13px var(--text);opacity:.8}
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="help">← → navegar · N notas · F pantalla completa · G índice</div>
+<div id="viewport"><div id="stage">
+
+<!-- 1 PORTADA -->
+<section class="slide dark" data-title="Portada" data-presenter="Salma Rodríguez" data-viz="cover" style="justify-content:center"
+data-notes="Buenas, somos el equipo de VaR con redes GAN. La nube de la derecha son nuestros 500 días reales: cada punto es un día y sus coordenadas son los rendimientos de NVDA, JPM y XOM. Los puntos naranjas son el 5 % de los peores días del portafolio. Medir dónde empiezan esos puntos es calcular el VaR. (Pueden girar la nube con el mouse.) Vamos a comparar dos formas de generar nubes así: una normal multivariada (Monte Carlo) y una red neuronal generativa (GAN).">
+<canvas id="cv-cover" style="position:absolute;left:780px;top:20px;width:1140px;height:1040px"></canvas>
+<div class="col" style="width:800px;gap:34px;position:relative">
+<p class="eyebrow in" style="--i:0">IIMAS–UNAM · Riesgos Financieros</p>
+<h1 class="in" style="--i:1">VaR de mercado con Redes GAN</h1>
+<p class="soft in" style="--i:2;width:740px">Valor en Riesgo al 95 % de un portafolio de tres acciones: red generativa adversaria frente a simulación Monte Carlo</p>
+<div class="col in" style="--i:3;gap:6px;margin-top:20px">
+<p class="small">Carlos Fabián Esteva Gallegos</p><p class="small">Erick León Gómez</p><p class="small">Salma Annette Rodríguez Muñoz</p>
+</div>
+<p class="hint in" style="--i:4;margin-top:24px"><b>Arrastra</b> la nube para girarla · <b>rueda</b> para acercar · <b>doble clic</b> para reiniciar</p>
+</div>
+</section>
+
+
+<!-- INTRO 1: LAS 4:15 -->
+<section class="slide dark" data-title="Introducción: las 4:15" data-presenter="Salma Rodríguez"
+data-notes="Imaginen que son el presidente de un banco y cada tarde necesitan saber una sola cosa: ¿cuánto podemos perder mañana? (Clic) Eso pasó de verdad: a finales de los años 80, Dennis Weatherstone, presidente de J.P. Morgan, pidió que cada día a las 4:15 de la tarde le entregaran una sola hoja con un número que resumiera todo el riesgo del banco. (Clic) Ese número es el Valor en Riesgo. En 1994 J.P. Morgan publicó su método, RiskMetrics, y hoy lo usan bancos y reguladores en todo el mundo. (Clic) Y un dato curioso: JPMorgan es una de las tres acciones de nuestro portafolio.">
+<div class="head"><p class="eyebrow in" style="--i:0">1. Introducción</p></div>
+<div class="row grow" style="gap:60px;align-items:center">
+<div class="col" style="width:1080px;gap:34px">
+<p class="statement in" style="--i:1;font-size:78px">Son las 4:15 de la tarde.<br><span class="c-orange">¿Cuánto podemos perder mañana?</span></p>
+<p class="soft step" style="width:1000px">A finales de los años 80, Dennis Weatherstone, presidente de J.P. Morgan, pidió una sola hoja cada día a las 4:15: <b style="color:#EEF2FA">un número</b> que resumiera todo el riesgo del banco.</p>
+<p class="step" style="width:1000px">Ese número es el <b class="c-blue">Valor en Riesgo</b>. En 1994 el método se hizo público (RiskMetrics) y hoy lo usan bancos y reguladores en todo el mundo.</p>
+<div class="row step" style="gap:18px;align-items:center"><p class="pill">Dato curioso</p><p class="small">JPM, el banco donde nació el VaR, es una de las tres acciones de nuestro portafolio.</p></div>
+</div>
+<div class="col grow" style="align-items:center;gap:26px">
+<div class="clock3d"><svg viewBox="0 0 400 400" width="500" height="500" aria-label="Reloj marcando las 4:15">
+<defs><radialGradient id="cf" cx="45%" cy="35%" r="75%"><stop offset="0" stop-color="#22306A"/><stop offset="1" stop-color="#0E1630"/></radialGradient></defs>
+<circle cx="200" cy="200" r="186" fill="#0A1028"/><circle cx="200" cy="200" r="176" fill="url(#cf)" stroke="#5B9BFF" stroke-width="4"/>
+<g id="ticks"></g>
+<line x1="200" y1="200" x2="200" y2="105" stroke="#EEF2FA" stroke-width="12" stroke-linecap="round" transform="rotate(127.5 200 200)"/>
+<line x1="200" y1="200" x2="200" y2="62" stroke="#EEF2FA" stroke-width="8" stroke-linecap="round" transform="rotate(90 200 200)"/>
+<g class="sec"><line x1="200" y1="225" x2="200" y2="52" stroke="#F28A52" stroke-width="3" stroke-linecap="round"/><circle cx="200" cy="52" r="7" fill="#F28A52"/></g>
+<circle cx="200" cy="200" r="11" fill="#F28A52"/>
+</svg></div>
+<p class="mid c-orange" style="letter-spacing:4px">16:15</p>
+</div>
+</div>
+<p class="foot">Presenta: Salma Rodríguez · Historia del VaR: J.P. Morgan, reporte de las 4:15 y RiskMetrics (1994)</p>
+</section>
+
+<!-- INTRO 2: UNA IDEA NACIDA EN UN BAR -->
+<section class="slide dark" data-title="Introducción: una idea nacida en un bar" data-presenter="Salma Rodríguez" data-viz="morph"
+data-notes="El otro protagonista es mucho más joven. Según la anécdota, en 2014 Ian Goodfellow discutía con amigos en un bar de Montreal cómo lograr que una computadora inventara imágenes. Esa misma noche programó la idea: poner a competir dos redes neuronales, una que falsifica y otra que detecta. Así nacieron las GAN. (Clic) Yann LeCun, uno de los padres del aprendizaje profundo, la llamó la idea más interesante de la década. (Clic) Hoy la misma idea genera rostros de personas que no existen. Miren la nube: así trabaja un generador, transforma ruido al azar en algo que se parece a los datos reales. (Clic) Y esa es nuestra pregunta: si una GAN puede inventar caras, ¿puede inventar días de mercado?">
+<canvas id="cv-morph" style="position:absolute;left:1000px;top:150px;width:880px;height:800px"></canvas>
+<div class="head"><p class="eyebrow in" style="--i:0">1. Introducción</p><h2 class="in" style="--i:1">Una idea nacida en un bar</h2></div>
+<div class="col grow" style="width:860px;gap:30px;justify-content:center">
+<div class="row in" style="--i:2;gap:28px;align-items:center"><p class="big c-blue">2014</p><p class="soft" style="width:520px">Montreal. Ian Goodfellow imagina dos redes que compiten: una falsifica, la otra detecta.</p></div>
+<p class="lead step" style="width:840px">«La idea más interesante de los últimos 10 años en aprendizaje automático.»<br><span class="small soft">— Yann LeCun, 2016</span></p>
+<p class="step">Hoy la misma idea crea <b class="c-orange">rostros de personas que no existen</b>.</p>
+<p class="lead step c-blue">Si puede inventar caras… ¿puede inventar días de mercado?</p>
+</div>
+<p class="hint" style="position:absolute;left:1060px;bottom:110px;width:780px">Ilustración: el generador convierte <b>ruido</b> en días que parecen <b>reales</b> · arrastra para girar</p>
+<p class="foot">Presenta: Salma Rodríguez · Goodfellow et al. (2014), Generative Adversarial Nets</p>
+</section>
+
+<!-- INTRO 3: JUEGO -->
+<section class="slide" data-title="Juego: ¿real o inventado?" data-presenter="Salma Rodríguez"
+data-notes="Antes de entrar en materia, un juego. Ustedes son el discriminador. Cada tarjeta es un día: el rendimiento de NVDA, JPM y XOM. Tres son días reales de nuestro historial y tres los inventó nuestra GAN. ¿Cuáles son cuáles? (Dejen que el público vote; hagan clic en cada tarjeta para voltearla o en «Revelar todas».) (Clic) Fíjense en lo que no pudo hacer la red: los días reales más extremos, la caída por los aranceles del 4 de abril de 2025 y el rebote del 9 de abril, están fuera de su alcance; su peor escenario de 500 fue −3.75 %. Guarden esta idea, porque es justo lo que vamos a medir.">
+<div class="head"><p class="eyebrow">1. Introducción · Juego</p><h2>¿Eres mejor detective que la red?</h2></div>
+<p class="soft" style="margin-top:-14px">Tres días son <b style="color:#121A33">reales</b> y tres los inventó nuestra <b style="color:#121A33">GAN</b>. Haz clic en cada tarjeta para descubrirlo.</p>
+<div id="game" class="grow" style="display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:28px"></div>
+<div class="row" style="gap:28px;align-items:center">
+<button class="btn" id="game-all">Revelar todas</button>
+<p class="small step" style="flex:1">Los días reales más extremos (<b>−7.35 %</b> y <b>+10.59 %</b> en el portafolio) no aparecen en la GAN: su peor escenario de 500 fue <b class="c-blue">−3.75 %</b>.</p>
+</div>
+<p class="foot">Presenta: Salma Rodríguez · Rendimientos logarítmicos diarios; los escenarios son de la GAN del primer día</p>
+</section>
+
+<!-- 2 EQUIPO -->
+<section class="slide" data-title="Ruta de la exposición" data-presenter="Salma Rodríguez"
+data-notes="La exposición tiene tres partes. Yo, Salma, cuento cómo nació el VaR, qué mide y cómo son nuestros datos. Erick explica los dos modelos que compiten. Fabián cierra con el backtest, la comparación y la decisión final. (Cada tarjeta es un atajo: un clic lleva a esa parte.)">
+<div class="head"><p class="eyebrow">Ruta de la exposición</p><h2>Tres partes, tres voces</h2></div>
+<div class="row grow" style="align-items:stretch">
+<div class="card tilt in" data-go="6" style="--i:1;flex:1;cursor:pointer"><p class="mid c-blue">01</p><h3>Introducción y datos</h3><p class="small soft">Cómo nació el VaR, qué mide, las tres acciones y por qué sus colas no son normales.</p><div class="grow"></div><p class="label soft">Salma Rodríguez</p><p class="small c-blue">Ir a esta parte →</p></div>
+<div class="card tilt in" data-go="11" style="--i:2;flex:1;cursor:pointer"><p class="mid c-blue">02</p><h3>Los dos modelos</h3><p class="small soft">Monte Carlo con normal multivariada y nuestra GAN: cómo cada uno inventa 500 escenarios.</p><div class="grow"></div><p class="label soft">Erick León</p><p class="small c-blue">Ir a esta parte →</p></div>
+<div class="card tilt in" data-go="16" style="--i:3;flex:1;cursor:pointer"><p class="mid c-blue">03</p><h3>La prueba y la decisión</h3><p class="small soft">Backtest de 20 días, prueba de Kupiec, ranking, finalista y conclusiones.</p><div class="grow"></div><p class="label soft">Carlos Fabián Esteva</p><p class="small c-blue">Ir a esta parte →</p></div>
+</div>
+</section>
+
+<!-- 3 VAR -->
+<section class="slide" data-title="¿Qué es el VaR?" data-presenter="Salma Rodríguez" data-viz="var"
+data-notes="Este histograma son los 500 rendimientos diarios reales del portafolio. El VaR al 95 % es la línea punteada: solo en 5 de cada 100 días perdimos más que eso, 1.69 %. El ES es el promedio de la zona naranja: cuánto se pierde cuando sí se rompe el VaR, 2.92 %. <b>Muevan el deslizador</b>: al 95 % la normal (línea azul) da un VaR más alto que la historia y parece conservadora, pero al 99.5 % la historia da 4.96 % y la normal solo 3.32 %. La normal se queda corta justo en la cola extrema.">
+<div class="head"><p class="eyebrow">Concepto</p><h2>¿Qué es el Valor en Riesgo?</h2></div>
+<div class="row grow" style="gap:56px">
+<div class="col" style="width:1030px;gap:18px">
+<canvas id="cv-var" style="width:1030px;height:520px"></canvas>
+<div class="row" style="align-items:center;gap:28px"><p class="small" style="width:280px;white-space:nowrap">Confianza: <b id="v-conf">95 %</b></p><input id="v-sl" type="range" min="90" max="99.5" step="0.5" value="95"></div>
+</div>
+<div class="col grow" style="gap:22px">
+<div class="row" style="gap:40px">
+<div class="col" style="gap:6px"><p class="label c-orange">VaR histórico</p><p class="mid" id="v-var">1.69 %</p></div>
+<div class="col" style="gap:6px"><p class="label c-orange">ES histórico</p><p class="mid" id="v-es">2.92 %</p></div>
+</div>
+<p class="small soft" id="v-days">25 de 500 días caen en la cola.</p>
+<button class="btn" id="v-norm" style="align-self:flex-start">Comparar con la normal</button>
+<div class="col" id="v-nbox" style="gap:6px;display:none"><p class="small"><span class="c-blue"><b>Normal:</b></span> VaR <b id="v-nvar"></b> · ES <b id="v-nes"></b></p><p class="small soft" id="v-msg"></p></div>
+</div>
+</div>
+<p class="foot">Presenta: Salma Rodríguez · 500 días reales del portafolio</p>
+</section>
+
+<!-- 4 PREGUNTA -->
+<section class="slide accent center" data-title="La pregunta" data-presenter="Salma Rodríguez"
+data-notes="Esta es la pregunta. Las GAN pueden aprender distribuciones sin suponer que son normales. La duda es si esa flexibilidad sirve cuando solo tenemos 500 días. Para responderla ponemos a competir dos modelos con las mismas reglas: 500 escenarios, VaR al 95 %, horizonte de un día.">
+<p class="eyebrow in" style="--i:0">La pregunta del proyecto</p>
+<p class="statement in" style="--i:1;width:1500px">¿Puede una red neuronal aprender el riesgo mejor que una normal… con solo 500 días de historia?</p>
+<p class="lead soft in" style="--i:2;width:1300px">GAN propia contra Monte Carlo, 500 escenarios cada uno, VaR al 95 % a un día.</p>
+<p class="foot">Presenta: Salma Rodríguez</p>
+</section>
+
+<!-- 5 DATOS -->
+<section class="slide" data-title="Los datos" data-presenter="Salma Rodríguez" data-viz="precios"
+data-notes="Elegimos NVIDIA, JPMorgan y Exxon: tecnología, banca y energía. NVDA es casi dos veces más volátil que las otras. El portafolio pone un tercio en cada una y su volatilidad baja a 1.33 %. En la gráfica (pasen el cursor para ver cada fecha) se ve la ventana de 500 días y, sombreados, los 20 días del backtest, que los modelos nunca vieron: NVDA cayó 28 % en ese periodo.">
+<div class="head"><p class="eyebrow">3.1 Análisis de datos</p><h2>Tres acciones de tres sectores</h2></div>
+<div class="row" style="gap:24px">
+<div class="card tilt in" style="--i:1;flex:1;padding:26px 30px;gap:6px"><div class="row" style="align-items:baseline;gap:16px"><p class="num" style="color:var(--blue-m)">NVDA</p><p class="small soft">Tecnología</p></div><p class="small">σ diaria <b>2.76 %</b></p></div>
+<div class="card tilt in" style="--i:2;flex:1;padding:26px 30px;gap:6px"><div class="row" style="align-items:baseline;gap:16px"><p class="num" style="color:var(--orange-m)">JPM</p><p class="small soft">Financiero</p></div><p class="small">σ diaria <b>1.55 %</b></p></div>
+<div class="card tilt in" style="--i:3;flex:1;padding:26px 30px;gap:6px"><div class="row" style="align-items:baseline;gap:16px"><p class="num" style="color:var(--teal-d)">XOM</p><p class="small soft">Energía</p></div><p class="small">σ diaria <b>1.57 %</b></p></div>
+<div class="card tilt in" style="--i:4;flex:1;padding:26px 30px;gap:6px;background:#E9EEF9;border-color:#C9D5EF"><div class="row" style="align-items:baseline;gap:16px"><p class="num">1/3</p><p class="small soft">cada una</p></div><p class="small">σ portafolio <b>1.33 %</b></p></div>
+</div>
+<canvas id="cv-px" class="in" style="--i:5;width:1664px;height:470px"></canvas>
+<p class="foot">Presenta: Salma Rodríguez · Precios ajustados (yfinance), base 100 · pasa el cursor sobre la gráfica</p>
+</section>
+
+<!-- 6 COLAS -->
+<section class="slide dark" data-title="Colas pesadas" data-presenter="Salma Rodríguez" data-viz="colas"
+data-notes="La curtosis en exceso mide qué tan pesadas son las colas; una normal tiene cero. Las tres acciones están por encima y el portafolio llega a 11.4. <b>Hagan clic en cada fila</b> para ver su histograma contra la normal: en naranja, los días a más de 3 desviaciones. Una normal esperaría 1.35 de esos días en 500; NVDA, JPM y XOM tienen 6 cada una y el portafolio 8. Jarque–Bera rechaza la normalidad con p < 0.001.">
+<div class="head"><p class="eyebrow">3.1 Análisis de datos</p><h2>Colas más pesadas que la normal</h2></div>
+<div class="row grow" style="gap:56px">
+<div class="col" style="width:640px;gap:18px;justify-content:center" id="k-list"></div>
+<div class="col grow" style="gap:14px">
+<canvas id="cv-colas" style="width:968px;height:520px"></canvas>
+<p class="small soft" id="k-info"></p>
+</div>
+</div>
+<p class="foot">Presenta: Salma Rodríguez · Curtosis en exceso, ventana de entrenamiento · haz clic en cada fila</p>
+</section>
+
+<!-- 7 NUBE -->
+<section class="slide dark" data-title="Cada día es un punto en 3D" data-presenter="Salma Rodríguez" data-viz="nube"
+data-notes="Esta nube son nuestros 500 días reales. Cada punto tiene tres coordenadas: el rendimiento de NVDA, JPM y XOM ese día. <b>Pasen el cursor</b> sobre un punto para ver su fecha. La mayoría se amontona en el centro, pero hay puntos muy lejos, como el −18.6 % de NVDA. Los 25 puntos naranjas son el 5 % de los peores días del portafolio. Con esta historia, el VaR es 1.69 % y el ES 2.92 %: es la referencia para comparar los modelos. Le paso la palabra a Erick.">
+<canvas id="cv-nube" style="position:absolute;left:90px;top:230px;width:1060px;height:720px"></canvas>
+<div class="head"><p class="eyebrow">3.1 Análisis de datos</p><h2>Cada día es un punto en 3D</h2></div>
+<div class="row grow"><div style="width:1020px"></div>
+<div class="col grow" style="gap:26px;justify-content:center">
+<p class="small soft">Ejes: rendimiento diario de cada acción, de −10 % a +10 %.</p>
+<div class="row" style="gap:14px;align-items:center"><i style="width:20px;height:20px;border-radius:50%;background:#5B9BFF"></i><p class="small">Un día de los 500</p></div>
+<div class="row" style="gap:14px;align-items:center"><i style="width:22px;height:22px;border-radius:50%;background:#F28A52;box-shadow:0 0 16px rgba(242,138,82,.8)"></i><p class="small">Los 25 peores días del portafolio (5 %)</p></div>
+<button class="btn on" id="n-tail" style="align-self:flex-start">Resaltar la cola</button>
+<div class="row" style="gap:40px;margin-top:8px"><div class="col" style="gap:6px"><p class="mid c-orange">1.69 %</p><p class="small soft">VaR histórico</p></div><div class="col" style="gap:6px"><p class="mid c-orange">2.92 %</p><p class="small soft">ES histórico</p></div></div>
+<p class="small soft">Correlaciones: NVDA–JPM 0.32 · JPM–XOM 0.15 · NVDA–XOM 0.00</p>
+<p class="hint"><b>Arrastra</b> para girar · <b>cursor</b> sobre un punto</p>
+</div></div>
+<p class="foot">Presenta: Salma Rodríguez · Datos reales, 22-oct-2024 a 20-oct-2026</p>
+</section>
+
+<!-- 8 MODELOS -->
+<section class="slide" data-title="Dos maneras de generar escenarios" data-presenter="Erick León"
+data-notes="Gracias, Salma. Los dos modelos hacen lo mismo al final: generan 500 escenarios de mañana y toman el 5 % peor. La diferencia es cómo los inventan. Monte Carlo estima la media y la covarianza y supone que todo es normal; con Cholesky mete la correlación. La GAN no supone ninguna forma: aprende de los datos con un juego entre dos redes. (Clic) El cálculo del VaR es idéntico; solo cambia de dónde salen los escenarios.">
+<div class="head"><p class="eyebrow">3.2 y 3.3 Los modelos</p><h2>Dos maneras de inventar 500 escenarios</h2></div>
+<div class="col grow" style="gap:44px;justify-content:center" id="pipes"></div>
+<p class="foot">Presenta: Erick León · Ventana móvil: cada día se reestiman ambos modelos</p>
+</section>
+
+<!-- 9 GAN -->
+<section class="slide dark" data-title="La GAN: falsificador contra detective" data-presenter="Erick León" data-viz="gan"
+data-notes="La GAN son dos redes que compiten. El generador G es el falsificador: recibe 8 números al azar y produce un día falso, es decir, tres rendimientos. El discriminador D es el detective: recibe días reales (arriba, en blanco) o días falsos de G y da la probabilidad de que sea real. Los puntos que viajan son las señales. D aprende a no dejarse engañar y G aprende a engañarlo; en el equilibrio, G produce días que se parecen a los reales. Usamos perceptrones de dos capas de 64 neuronas, suavizado de etiquetas y una media móvil de los pesos. (Pueden girar la red con el mouse.)">
+<canvas id="cv-gan" style="position:absolute;left:128px;top:250px;width:1664px;height:560px"></canvas>
+<div class="head"><p class="eyebrow">3.2 VaR con Redes GAN</p><h2>La GAN: falsificador contra detective</h2></div>
+<p class="small" style="position:absolute;left:1040px;top:262px">Datos reales (500 días)</p>
+<div id="gan-labels"></div>
+<div class="row" style="position:absolute;left:128px;bottom:110px;gap:20px;align-items:center"><button class="btn" id="g-pause">Pausar señales</button><p class="hint"><b>Arrastra</b> para girar la red · <b>cursor</b> sobre una capa</p></div>
+<p class="foot">Presenta: Erick León · G: 4 931 parámetros · D: 4 481 · Adam, lote de 128, 400 épocas</p>
+</section>
+
+<!-- 10 ENTRENAMIENTO -->
+<section class="slide" data-title="Entrenamiento de la GAN" data-presenter="Erick León" data-viz="train"
+data-notes="Así se ve el entrenamiento del primer día. Al inicio las dos pérdidas oscilan mucho: gana una red y luego la otra. Después de unas 250 épocas se estabilizan sin que ninguna gane. (Pasen el cursor para ver cada época.) Esos valores, 1.38 y 0.80, son el equilibrio teórico: si el detective ya no distingue y contesta 0.45 a todo, sus pérdidas valen justo eso. Pero una pérdida estable no garantiza buenos escenarios; por eso los comparamos directamente.">
+<div class="head"><p class="eyebrow">3.2 VaR con Redes GAN</p><h2>Entrenamiento: un empate estable</h2></div>
+<div class="row grow" style="gap:56px">
+<canvas id="cv-train" style="width:1080px;height:600px"></canvas>
+<div class="col grow" style="gap:28px;justify-content:center">
+<p class="label soft">Época <span id="e-ep">400</span></p>
+<div class="col" style="gap:8px"><div class="row" style="gap:14px;align-items:center"><i style="width:36px;height:6px;background:#14857A;border-radius:3px"></i><p class="small"><b>Discriminador D</b></p></div><p class="mid c-teal" id="e-d">1.38</p></div>
+<div class="col" style="gap:8px"><div class="row" style="gap:14px;align-items:center"><i style="width:36px;height:6px;background:#1E5BC6;border-radius:3px"></i><p class="small"><b>Generador G</b></p></div><p class="mid c-blue" id="e-g">0.79</p></div>
+<p class="small soft step">Equilibrio teórico: si D responde p = 0.45 a todo, sus pérdidas valen 1.38 y 0.80 (líneas punteadas). Pero una pérdida estable no garantiza buenos escenarios.</p>
+</div>
+</div>
+<p class="foot">Presenta: Erick León · Pérdidas de entropía cruzada, primera ventana · pasa el cursor sobre la gráfica</p>
+</section>
+
+<!-- 11 ESCENARIOS -->
+<section class="slide dark" data-title="Escenarios de cada modelo" data-presenter="Erick León" data-viz="esc"
+data-notes="Aquí ponemos las tres nubes en el mismo espacio. <b>Prendan y apaguen cada una</b> con los botones. La historia real, en gris, tiene un centro apretado y puntos muy lejos. La GAN, en azul, es más compacta: desviación de 1.05 % contra 1.33 % real y casi sin extremos; aprendió el cuerpo pero no las colas. Monte Carlo, en naranja, es una elipse simétrica: más ancha en el centro, sin colas largas. Además la GAN distorsiona las correlaciones: inventa una correlación negativa entre NVDA y XOM.">
+<canvas id="cv-esc" style="position:absolute;left:90px;top:230px;width:1060px;height:720px"></canvas>
+<div class="head"><p class="eyebrow">3.2 y 3.3 Escenarios del primer día</p><h2>Tres nubes en el mismo espacio</h2></div>
+<div class="row grow"><div style="width:1020px"></div>
+<div class="col grow" style="gap:24px;justify-content:center">
+<div class="col" style="gap:14px" id="esc-chips"></div>
+<table class="tbl" style="font-size:24px;margin-top:10px">
+<tr><th></th><th class="r">σ</th><th class="r">Curtosis</th><th class="r">NVDA–XOM</th></tr>
+<tr><td>Historial</td><td class="r">1.33 %</td><td class="r">11.41</td><td class="r">0.00</td></tr>
+<tr><td class="c-blue">GAN</td><td class="r">1.05 %</td><td class="r">0.25</td><td class="r">−0.16</td></tr>
+<tr><td class="c-orange">Monte Carlo</td><td class="r">1.41 %</td><td class="r">0.12</td><td class="r">0.01</td></tr>
+</table>
+<p class="hint"><b>Arrastra</b> para girar · <b>cursor</b> sobre un punto</p>
+</div></div>
+<p class="foot">Presenta: Erick León · 500 escenarios por modelo, 21-oct-2026 · ejes de −10 % a +10 %</p>
+</section>
+
+<!-- 12 T0 -->
+<section class="slide" data-title="VaR y ES del primer día" data-presenter="Erick León"
+data-notes="Con esos escenarios calculamos el VaR y el ES del primer día. La barra sólida es el VaR y la clara el ES. (Clic) La GAN da 1.81 %, el más cercano al 1.69 % histórico, pero su ES es 2.33 %, muy por debajo del 2.92 %: subestima la cola. (Clic) Monte Carlo da un VaR más alto, 2.19 %. Su ES de 2.87 % parece casi perfecto, pero el valor exacto de la normal es 2.61 %: ese día tuvo suerte con los 500 escenarios. (Clic) Ninguno captura la cola extrema. Ahora Salma les muestra qué pasó con días reales.">
+<div class="head"><p class="eyebrow">3.2 y 3.3 Resultado en el primer día</p><h2>VaR y ES de cada modelo</h2></div>
+<div class="row grow" style="gap:72px;align-items:flex-end">
+<div class="col" style="width:960px;gap:14px" id="t0-chart"></div>
+<div class="col grow" style="gap:28px;padding-bottom:50px">
+<div class="col step" style="gap:8px"><p class="label c-blue">GAN</p><p class="small">VaR más cercano al histórico, dentro de su intervalo [1.62, 2.00] %… pero su ES se queda corto.</p></div>
+<div class="col step" style="gap:8px"><p class="label c-orange">Monte Carlo</p><p class="small">VaR más alto. Su ES parece exacto, pero es suerte del muestreo: el de la normal es 2.61 %.</p></div>
+<div class="col step" style="gap:8px"><p class="label soft">Lección</p><p class="small">Ninguno reproduce la cola extrema de la historia.</p></div>
+</div>
+</div>
+<p class="foot">Presenta: Erick León · Pérdida como % del portafolio, 21-oct-2026 · pasa el cursor sobre las barras</p>
+</section>
+
+<!-- 13 BACKTEST -->
+<section class="slide dark" data-title="Backtest de 20 días" data-presenter="Carlos Fabián Esteva" data-viz="bt"
+data-notes="Gracias, Erick. Ahora la prueba de fuego. Durante 20 días que ningún modelo vio, cada mañana calculamos el VaR con los 500 días anteriores y al cierre comparamos con lo que pasó. Las barras son el rendimiento real de cada día; las líneas, el límite de pérdida de cada modelo: azul la GAN, naranja Monte Carlo. Cuando una barra baja más que la línea, el modelo falló: es una excepción, en rojo. (Pasen el cursor sobre una barra para ver el detalle.) Este periodo fue malo: NVDA cayó 28 %. (Clic) La GAN tuvo 3 excepciones, Monte Carlo 2; esperábamos 1.">
+<canvas id="cv-bt" style="position:absolute;left:80px;top:230px;width:1190px;height:700px"></canvas>
+<div class="head"><p class="eyebrow">3.4 Backtest</p><h2>20 días que los modelos nunca vieron</h2></div>
+<div class="row grow"><div style="width:1140px"></div>
+<div class="col grow" style="gap:20px;justify-content:center">
+<div class="row" style="gap:14px;align-items:center"><i style="width:26px;height:26px;background:#8C96B0;border-radius:4px"></i><p class="small">Rendimiento real del día</p></div>
+<div class="row" style="gap:14px;align-items:center"><i style="width:26px;height:26px;background:#FF6B6B;border-radius:4px"></i><p class="small">Excepción: perdió más que el VaR</p></div>
+<button class="chip" id="bt-g" style="align-self:flex-start"><i style="background:#5B9BFF;height:6px;width:30px;border-radius:3px"></i>−VaR de la GAN</button>
+<button class="chip" id="bt-m" style="align-self:flex-start"><i style="background:#F28A52;height:6px;width:30px;border-radius:3px"></i>−VaR de Monte Carlo</button>
+<div class="row step" style="gap:34px;margin-top:10px">
+<div class="col" style="gap:4px"><p class="big c-blue">3</p><p class="small soft">excepciones GAN</p></div>
+<div class="col" style="gap:4px"><p class="big c-orange">2</p><p class="small soft">Monte Carlo</p></div>
+<div class="col" style="gap:4px"><p class="big soft">1</p><p class="small soft">esperada</p></div>
+</div>
+<p class="hint"><b>Arrastra</b> para girar · <b>cursor</b> sobre una barra</p>
+</div></div>
+<p class="foot">Presenta: Carlos Fabián Esteva · 21-oct al 17-nov-2026, ventana móvil de 500 días</p>
+</section>
+
+<!-- 14 EXCEPCIONES -->
+<section class="slide" data-title="Los días con excepción" data-presenter="Carlos Fabián Esteva"
+data-notes="Estos son los tres días con excepción. Ambos modelos fallan el 5 y el 16 de noviembre; la GAN falla además el 10, por apenas una décima. (Clic) El 5 de noviembre es el día clave: el portafolio cayó 5.27 % porque las tres acciones cayeron juntas, NVDA más de 9 %. Con correlaciones históricas bajas, ningún modelo que aprende de días normales anticipa una caída conjunta así.">
+<div class="head"><p class="eyebrow">3.4 Backtest</p><h2>Los tres días que rompieron el VaR</h2></div>
+<table class="tbl in" style="--i:1;font-size:32px">
+<tr><th style="width:28%">Fecha</th><th class="r">Rendimiento real</th><th class="r">VaR GAN</th><th class="r">VaR Monte Carlo</th></tr>
+<tr><td>5-nov-2026</td><td class="r">−5.27 %</td><td class="r c-red">2.36 % · falla</td><td class="r c-red">2.03 % · falla</td></tr>
+<tr><td>10-nov-2026</td><td class="r">−1.88 %</td><td class="r c-red">1.78 % · falla</td><td class="r soft">1.90 % · cubre</td></tr>
+<tr><td>16-nov-2026</td><td class="r">−2.66 %</td><td class="r c-red">2.09 % · falla</td><td class="r c-red">1.88 % · falla</td></tr>
+</table>
+<div class="card step tilt" style="flex-direction:row;gap:60px;align-items:center;padding:34px 48px">
+<div class="col" style="width:440px;gap:8px"><p class="label c-red">5 de noviembre</p><p class="small">Las tres acciones cayeron a la vez, aunque su correlación histórica es baja.</p></div>
+<div class="col" style="gap:4px"><p class="mid c-red">−9.3 %</p><p class="small soft">NVDA</p></div>
+<div class="col" style="gap:4px"><p class="mid c-red">−4.2 %</p><p class="small soft">JPM</p></div>
+<div class="col" style="gap:4px"><p class="mid c-red">−2.4 %</p><p class="small soft">XOM</p></div>
+</div>
+<p class="foot">Presenta: Carlos Fabián Esteva · La GAN falla el 10-nov por solo 0.10 puntos</p>
+</section>
+
+<!-- 15 KUPIEC -->
+<section class="slide" data-title="Prueba de Kupiec" data-presenter="Carlos Fabián Esteva" data-viz="kupiec"
+data-notes="¿3 excepciones es mucho? Si el modelo fuera perfecto, el número de excepciones en 20 días sigue una binomial con probabilidad 5 %. Lo más común es ver 0 o 1. <b>Hagan clic en cada número</b> para ver la prueba de Kupiec: con 2, como Monte Carlo, p = 0.363; con 3, como la GAN, p = 0.094. No rechazamos a ninguno. Hay que llegar a 4 para rechazar: con solo 20 días la prueba tiene poca potencia. Las 3 de la GAN son una señal de alerta, no una prueba.">
+<div class="head"><p class="eyebrow">3.4 Prueba de Kupiec</p><h2>¿Son demasiadas 3 excepciones?</h2></div>
+<div class="row grow" style="gap:72px;align-items:flex-end">
+<div class="col" style="width:1000px;gap:14px" id="kp-chart"></div>
+<div class="col grow" style="gap:24px;padding-bottom:30px">
+<p class="label soft">Excepciones observadas</p>
+<p class="mid" id="kp-k">3</p>
+<p class="small">LR de Kupiec <b id="kp-lr"></b> · p-valor <b id="kp-p"></b></p>
+<p class="lead" id="kp-dec"></p>
+<p class="small soft">Aun con un modelo perfecto, ver 3 o más pasa el 7.5 % de las veces.</p>
+</div>
+</div>
+<p class="foot">Presenta: Carlos Fabián Esteva · X ~ Binomial(20, 0.05) · haz clic en cada número de excepciones</p>
+</section>
+
+<!-- 16 RANKING -->
+<section class="slide" data-title="Ranking" data-presenter="Carlos Fabián Esteva"
+data-notes="Antes de ver los resultados fijamos cuatro criterios. Monte Carlo gana en calibración, porque se acerca más a la excepción esperada, y en parecido con la historia (distancia de Kolmogorov–Smirnov). La GAN gana en pérdida cuantílica, que premia acertar el cuantil del 5 %, y en VaR medio, es decir, pide menos capital. Empate 6 a 6. El desempate, fijado antes, es la pérdida cuantílica. (Clic) Además, la prueba KS rechaza que los escenarios de la GAN se parezcan a la historia, y no rechaza los de Monte Carlo.">
+<div class="head"><p class="eyebrow">3.5 Comparación</p><h2>Cuatro criterios, un empate</h2></div>
+<div class="row grow" style="gap:72px;align-items:center">
+<table class="tbl in" style="--i:1;width:1100px;font-size:28px">
+<tr><th style="width:44%">Criterio</th><th class="r">GAN</th><th class="r">MC</th><th>Gana</th></tr>
+<tr><td>Excepciones vs. esperadas</td><td class="r">3 vs 1</td><td class="r">2 vs 1</td><td class="c-orange">Monte Carlo</td></tr>
+<tr><td>Pérdida cuantílica media</td><td class="r">0.00237</td><td class="r">0.00272</td><td class="c-blue">GAN</td></tr>
+<tr><td>VaR medio (capital)</td><td class="r">1.80 %</td><td class="r">2.06 %</td><td class="c-blue">GAN</td></tr>
+<tr><td>Distancia KS al historial</td><td class="r">0.090</td><td class="r">0.076</td><td class="c-orange">Monte Carlo</td></tr>
+<tr class="total"><td>Suma de rangos</td><td class="r">6</td><td class="r">6</td><td>Empate</td></tr>
+</table>
+<div class="col grow" style="gap:22px;align-items:center">
+<div class="row" style="gap:28px;align-items:center"><p class="big c-blue in" style="--i:2">6</p><p class="mid soft in" style="--i:3">=</p><p class="big c-orange in" style="--i:4">6</p></div>
+<p class="small soft" style="text-align:center">Desempate fijado de antemano: la menor pérdida cuantílica.</p>
+<p class="small step" style="text-align:center">La prueba KS rechaza que los escenarios de la GAN vengan de la historia (p = 0.035); a Monte Carlo no (p = 0.111).</p>
+</div>
+</div>
+<p class="foot">Presenta: Carlos Fabián Esteva · Rango 1 = mejor; KS medida en el primer día</p>
+</section>
+
+<!-- 17 FINALISTA -->
+<section class="slide dark" data-title="Finalista" data-presenter="Carlos Fabián Esteva"
+data-notes="Siguiendo la regla que fijamos antes, el finalista es la GAN propia, por desempate. Pero hay que leerlo con cuidado. (Clic) Su ventaja es pequeña y descansa en pocos días. (Clic) Si cambiamos solo la semilla, su VaR del primer día va de 1.58 a 2.11 %, tanto como la distancia a Monte Carlo. (Clic) Y subestima la cola: ES promedio 2.28 % contra 2.97 % de la historia. (Clic) Conclusión honesta: con 20 días no podemos afirmar que uno sea mejor. Si la prioridad es el riesgo de cola o la estabilidad, Monte Carlo es la opción prudente.">
+<div class="head"><p class="eyebrow">3.5 Decisión</p><p class="statement in" style="--i:1;width:1500px">Finalista: la GAN propia, por desempate</p></div>
+<div class="row grow" style="align-items:stretch">
+<div class="card step tilt" style="flex:1"><p class="label c-blue">Ventaja pequeña</p><p class="small">Pérdida cuantílica 0.00237 vs 0.00272, sostenida por pocos días con pérdidas grandes.</p></div>
+<div class="card step tilt" style="flex:1"><p class="label c-orange">Depende de la semilla</p><p class="small">Con 8 semillas, el VaR del primer día va de 1.58 % a 2.11 %: tanto como la distancia a Monte Carlo.</p></div>
+<div class="card step tilt" style="flex:1"><p class="label c-red">Subestima la cola</p><p class="small">ES promedio 2.28 % contra 2.97 % de la historia; Monte Carlo, 2.59 %.</p></div>
+</div>
+<p class="lead step">Con 20 días, los datos no permiten afirmar que un modelo sea mejor que el otro.</p>
+<p class="foot">Presenta: Carlos Fabián Esteva · Regla de decisión fijada antes del backtest</p>
+</section>
+
+<!-- 18 CONCLUSIONES -->
+<section class="slide" data-title="Conclusiones" data-presenter="Carlos Fabián Esteva"
+data-notes="Cerramos con cuatro ideas. Primero, los datos tienen colas pesadas: vale la pena buscar alternativas a la normal. Segundo, nuestra GAN aprende el cuerpo de la distribución pero no las colas, que es donde vive el riesgo. Tercero, Monte Carlo es más estable y respeta la dependencia entre activos, aunque también subestima la cola. Cuarto, para una respuesta firme necesitamos un backtest más largo, varias semillas y arquitecturas temporales como TimeGAN.">
+<div class="head"><p class="eyebrow">4. Conclusiones</p><h2>Lo que aprendimos</h2></div>
+<div class="grow" style="display:grid;grid-template-columns:repeat(2,1fr);gap:30px">
+<div class="card tilt in" style="--i:1"><p class="num c-blue">01</p><h3>Las colas importan</h3><p class="small soft">Las tres acciones tienen colas pesadas: la normal no describe bien los días extremos.</p></div>
+<div class="card tilt in" style="--i:2"><p class="num c-blue">02</p><h3>La GAN aprende el cuerpo</h3><p class="small soft">VaR competitivo, pero ES bajo, correlaciones distorsionadas y mucha sensibilidad a la semilla.</p></div>
+<div class="card tilt in" style="--i:3"><p class="num c-orange">03</p><h3>Monte Carlo es estable</h3><p class="small soft">Respeta la dependencia entre activos y subestima menos la cola, aunque también la subestima.</p></div>
+<div class="card tilt in" style="--i:4"><p class="num c-orange">04</p><h3>Siguiente paso</h3><p class="small soft">Backtest de 250 días, varias semillas por día, GAN temporal (TimeGAN) y una t de Student como referencia.</p></div>
+</div>
+<p class="foot">Presenta: Carlos Fabián Esteva</p>
+</section>
+
+<!-- 19 GRACIAS -->
+<section class="slide dark" data-title="Gracias" data-presenter="Carlos Fabián Esteva" data-viz="gracias" style="justify-content:center"
+data-notes="Muchas gracias. Quedamos atentos a sus preguntas; el código completo está en los anexos del reporte.">
+<canvas id="cv-gracias" style="position:absolute;left:780px;top:20px;width:1140px;height:1040px"></canvas>
+<div class="col" style="width:800px;gap:34px;position:relative">
+<p class="eyebrow in" style="--i:0">VaR de mercado con Redes GAN</p>
+<h1 class="in" style="--i:1">Gracias</h1>
+<p class="lead soft in" style="--i:2">¿Preguntas?</p>
+<div class="col in" style="--i:3;gap:6px;margin-top:20px"><p class="small">Carlos Fabián Esteva Gallegos</p><p class="small">Erick León Gómez</p><p class="small">Salma Annette Rodríguez Muñoz</p></div>
+</div>
+</section>
+
+</div></div>
+
+<div id="hud">
+<span id="who"></span><span class="sp"></span>
+<button id="b-prev" title="Anterior (←)">◀</button>
+<button id="b-idx" title="Índice (G)"><span id="count">1 / 19</span></button>
+<button id="b-next" title="Siguiente (→)">▶</button>
+<button id="b-notes" title="Notas del orador (N)">Notas</button>
+<button id="b-full" title="Pantalla completa (F)">Pantalla completa</button>
+</div>
+<div id="notes"></div>
+<div id="menu"><ol id="menu-list"></ol></div>
+<div id="tip"></div>
+
+<script>const DATA={"dates":["2024-10-22","2024-10-23","2024-10-24","2024-10-25","2024-10-28","2024-10-29","2024-10-30","2024-10-31","2024-11-01","2024-11-04","2024-11-05","2024-11-06","2024-11-07","2024-11-08","2024-11-11","2024-11-12","2024-11-13","2024-11-14","2024-11-15","2024-11-18","2024-11-19","2024-11-20","2024-11-21","2024-11-22","2024-11-25","2024-11-26","2024-11-27","2024-11-29","2024-12-02","2024-12-03","2024-12-04","2024-12-05","2024-12-06","2024-12-09","2024-12-10","2024-12-11","2024-12-12","2024-12-13","2024-12-16","2024-12-17","2024-12-18","2024-12-19","2024-12-20","2024-12-23","2024-12-24","2024-12-26","2024-12-27","2024-12-30","2024-12-31","2025-01-02","2025-01-03","2025-01-06","2025-01-07","2025-01-08","2025-01-10","2025-01-13","2025-01-14","2025-01-15","2025-01-16","2025-01-17","2025-01-21","2025-01-22","2025-01-23","2025-01-24","2025-01-27","2025-01-28","2025-01-29","2025-01-30","2025-01-31","2025-02-03","2025-02-04","2025-02-05","2025-02-06","2025-02-07","2025-02-10","2025-02-11","2025-02-12","2025-02-13","2025-02-14","2025-02-18","2025-02-19","2025-02-20","2025-02-21","2025-02-24","2025-02-25","2025-02-26","2025-02-27","2025-02-28","2025-03-03","2025-03-04","2025-03-05","2025-03-06","2025-03-07","2025-03-10","2025-03-11","2025-03-12","2025-03-13","2025-03-14","2025-03-17","2025-03-18","2025-03-19","2025-03-20","2025-03-21","2025-03-24","2025-03-25","2025-03-26","2025-03-27","2025-03-28","2025-03-31","2025-04-01","2025-04-02","2025-04-03","2025-04-04","2025-04-07","2025-04-08","2025-04-09","2025-04-10","2025-04-11","2025-04-14","2025-04-15","2025-04-16","2025-04-17","2025-04-21","2025-04-22","2025-04-23","2025-04-24","2025-04-25","2025-04-28","2025-04-29","2025-04-30","2025-05-01","2025-05-02","2025-05-05","2025-05-06","2025-05-07","2025-05-08","2025-05-09","2025-05-12","2025-05-13","2025-05-14","2025-05-15","2025-05-16","2025-05-19","2025-05-20","2025-05-21","2025-05-22","2025-05-23","2025-05-27","2025-05-28","2025-05-29","2025-05-30","2025-06-02","2025-06-03","2025-06-04","2025-06-05","2025-06-06","2025-06-09","2025-06-10","2025-06-11","2025-06-12","2025-06-13","2025-06-16","2025-06-17","2025-06-18","2025-06-20","2025-06-23","2025-06-24","2025-06-25","2025-06-26","2025-06-27","2025-06-30","2025-07-01","2025-07-02","2025-07-03","2025-07-07","2025-07-08","2025-07-09","2025-07-10","2025-07-11","2025-07-14","2025-07-15","2025-07-16","2025-07-17","2025-07-18","2025-07-21","2025-07-22","2025-07-23","2025-07-24","2025-07-25","2025-07-28","2025-07-29","2025-07-30","2025-07-31","2025-08-01","2025-08-04","2025-08-05","2025-08-06","2025-08-07","2025-08-08","2025-08-11","2025-08-12","2025-08-13","2025-08-14","2025-08-15","2025-08-18","2025-08-19","2025-08-20","2025-08-21","2025-08-22","2025-08-25","2025-08-26","2025-08-27","2025-08-28","2025-08-29","2025-09-02","2025-09-03","2025-09-04","2025-09-05","2025-09-08","2025-09-09","2025-09-10","2025-09-11","2025-09-12","2025-09-15","2025-09-16","2025-09-17","2025-09-18","2025-09-19","2025-09-22","2025-09-23","2025-09-24","2025-09-25","2025-09-26","2025-09-29","2025-09-30","2025-10-01","2025-10-02","2025-10-03","2025-10-06","2025-10-07","2025-10-08","2025-10-09","2025-10-10","2025-10-13","2025-10-14","2025-10-15","2025-10-16","2025-10-17","2025-10-20","2025-10-21","2025-10-22","2025-10-23","2025-10-24","2025-10-27","2025-10-28","2025-10-29","2025-10-30","2025-10-31","2025-11-03","2025-11-04","2025-11-05","2025-11-06","2025-11-07","2025-11-10","2025-11-11","2025-11-12","2025-11-13","2025-11-14","2025-11-17","2025-11-18","2025-11-19","2025-11-20","2025-11-21","2025-11-24","2025-11-25","2025-11-26","2025-11-28","2025-12-01","2025-12-02","2025-12-03","2025-12-04","2025-12-05","2025-12-08","2025-12-09","2025-12-10","2025-12-11","2025-12-12","2025-12-15","2025-12-16","2025-12-17","2025-12-18","2025-12-19","2025-12-22","2025-12-23","2025-12-24","2025-12-26","2025-12-29","2025-12-30","2025-12-31","2026-01-02","2026-01-05","2026-01-06","2026-01-07","2026-01-08","2026-01-09","2026-01-12","2026-01-13","2026-01-14","2026-01-15","2026-01-16","2026-01-20","2026-01-21","2026-01-22","2026-01-23","2026-01-26","2026-01-27","2026-01-28","2026-01-29","2026-01-30","2026-02-02","2026-02-03","2026-02-04","2026-02-05","2026-02-06","2026-02-09","2026-02-10","2026-02-11","2026-02-12","2026-02-13","2026-02-17","2026-02-18","2026-02-19","2026-02-20","2026-02-23","2026-02-24","2026-02-25","2026-02-26","2026-02-27","2026-03-02","2026-03-03","2026-03-04","2026-03-05","2026-03-06","2026-03-09","2026-03-10","2026-03-11","2026-03-12","2026-03-13","2026-03-16","2026-03-17","2026-03-18","2026-03-19","2026-03-20","2026-03-23","2026-03-24","2026-03-25","2026-03-26","2026-03-27","2026-03-30","2026-03-31","2026-04-01","2026-04-02","2026-04-06","2026-04-07","2026-04-08","2026-04-09","2026-04-10","2026-04-13","2026-04-14","2026-04-15","2026-04-16","2026-04-17","2026-04-20","2026-04-21","2026-04-22","2026-04-23","2026-04-24","2026-04-27","2026-04-28","2026-04-29","2026-04-30","2026-05-01","2026-05-04","2026-05-05","2026-05-06","2026-05-07","2026-05-08","2026-05-11","2026-05-12","2026-05-13","2026-05-14","2026-05-15","2026-05-18","2026-05-19","2026-05-20","2026-05-21","2026-05-22","2026-05-26","2026-05-27","2026-05-28","2026-05-29","2026-06-01","2026-06-02","2026-06-03","2026-06-04","2026-06-05","2026-06-08","2026-06-09","2026-06-10","2026-06-11","2026-06-12","2026-06-15","2026-06-16","2026-06-17","2026-06-18","2026-06-22","2026-06-23","2026-06-24","2026-06-25","2026-06-26","2026-06-29","2026-06-30","2026-07-01","2026-07-02","2026-07-06","2026-07-07","2026-07-08","2026-07-09","2026-07-10","2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04","2026-09-08","2026-09-09","2026-09-10","2026-09-11","2026-09-14","2026-09-15","2026-09-16","2026-09-17","2026-09-18","2026-09-21","2026-09-22","2026-09-23","2026-09-24","2026-09-25","2026-09-28","2026-09-29","2026-09-30","2026-10-01","2026-10-02","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-12","2026-10-13","2026-10-14","2026-10-15","2026-10-16","2026-10-19","2026-10-20","2026-10-21","2026-10-22","2026-10-23","2026-10-26","2026-10-27","2026-10-28","2026-10-29","2026-10-30","2026-11-02","2026-11-03","2026-11-04","2026-11-05","2026-11-06","2026-11-09","2026-11-10","2026-11-11","2026-11-12","2026-11-13","2026-11-16","2026-11-17"],"R":[[-8,50,51],[-285,-32,-36],[61,70,-57],[80,-119,-8],[-72,142,-49],[52,-116,-137],[-136,68,-50],[-484,-112,8],[197,46,-158],[48,-143,313],[280,78,29],[399,1093,170],[222,-442,12],[-84,25,-3],[-162,97,-53],[206,11,-10],[-137,67,93],[33,29,7],[-331,141,-104],[-130,-11,83],[478,-79,-141],[-76,-95,141],[53,164,133],[-327,154,-11],[-427,70,-151],[66,-13,-168],[-116,-7,-26],[213,-3,25],[27,-140,-9],[117,-58,-15],[342,-58,-292],[-5,85,44],[-182,76,-106],[-258,-145,-59],[-273,-39,-20],[309,28,-67],[-142,-82,-9],[-228,-66,-88],[-169,-15,-216],[-123,-51,-42],[-114,-341,-148],[136,112,-86],[303,197,34],[362,33,41],[39,163,9],[-21,34,8],[-211,-81,-1],[35,-77,-68],[-235,16,170],[295,12,-24],[436,136,51],[338,-49,-11],[-642,96,93],[-2,-2,-169],[-304,-135,-37],[-199,179,255],[-111,133,39],[334,195,162],[-198,76,-17],[305,190,89],[224,148,-76],[434,-7,-176],[10,118,56],[-317,-42,-136],[-1859,38,138],[855,48,-195],[-419,-21,58],[77,62,82],[-374,-35,-253],[-288,-18,24],[169,42,264],[508,93,-7],[304,236,-133],[90,-40,42],[283,-174,189],[-58,145,63],[-126,17,-305],[312,32,72],[260,10,10],[40,121,174],[-12,-25,15],[63,-456,153],[-414,-96,-118],[-314,-110,52],[-284,-152,-139],[361,54,-25],[-886,10,63],[389,214,107],[-909,-153,-326],[168,-406,-20],[112,51,-197],[-591,-200,205],[190,-174,129],[-520,-424,252],[165,-134,-239],[623,-54,-3],[-14,-120,-42],[513,317,293],[-177,64,165],[-349,44,-11],[179,175,155],[86,-4,42],[-70,109,-35],[310,263,26],[-59,123,68],[-591,-4,143],[-207,-117,-32],[-159,-215,-14],[-118,100,101],[162,-67,9],[24,88,-31],[-813,-722,-540],[-764,-778,-747],[347,196,-135],[-138,113,-213],[1716,775,487],[-609,-313,-571],[308,392,316],[-20,-63,24],[134,-68,-28],[-712,-152,105],[-291,102,259],[-462,-129,-148],[202,284,276],[379,222,-86],[356,155,117],[421,-45,-6],[-208,-14,6],[27,57,-25],[-9,0,-255],[244,92,14],[256,225,41],[-60,2,-281],[-25,-132,138],[305,6,-10],[26,162,139],[-62,-15,116],[530,272,171],[548,113,27],[408,100,-90],[-38,69,101],[42,3,-36],[13,-101,-160],[-88,30,-144],[-194,-176,-124],[78,-14,-67],[-117,2,6],[316,174,47],[-51,-68,-137],[320,33,57],[-296,-14,-38],[165,25,73],[276,61,73],[49,-77,-146],[-137,-86,-46],[123,143,237],[64,38,67],[93,69,212],[-78,-17,193],[151,3,38],[-211,-123,215],[190,202,32],[-39,-31,134],[94,163,-71],[-113,38,133],[22,118,-261],[255,107,-309],[424,99,3],[46,164,148],[175,-57,-56],[15,97,-146],[-301,17,133],[254,55,164],[132,184,103],[-69,-137,-98],[111,-320,273],[178,13,-34],[75,176,99],[50,-46,43],[-52,64,-132],[396,-75,-89],[39,-26,-60],[95,142,-51],[-34,47,-355],[-60,-10,26],[-257,16,45],[222,181,127],[172,-7,78],[-14,70,-35],[186,-11,94],[-70,-42,128],[212,87,-87],[-78,-114,-23],[-236,-235,-181],[355,168,-209],[-97,-99,-12],[65,-1,-68],[75,-153,-53],[106,63,80],[-35,28,-91],[60,113,28],[-86,-80,138],[24,124,-20],[-87,-126,9],[86,36,22],[-356,-30,65],[-14,54,103],[-24,-26,64],[171,162,186],[102,-45,41],[108,124,-22],[-9,24,112],[-79,60,53],[-338,12,83],[-197,-57,35],[-9,-6,-245],[61,143,44],[-274,-316,-286],[77,-50,57],[145,167,73],[378,90,166],[-8,166,-32],[37,44,2],[-4,65,17],[-163,9,205],[-266,82,53],[343,47,-119],[24,49,-98],[385,-75,-71],[-286,10,171],[-82,22,53],[41,1,90],[28,83,140],[203,-12,-259],[257,-8,-130],[35,-151,-68],[88,-102,-63],[-67,80,175],[-111,21,83],[-27,-48,5],[218,-120,-21],[181,49,-98],[-501,-153,-195],[278,233,135],[-450,-193,4],[-11,119,-61],[110,-237,-87],[77,-33,144],[-32,160,41],[-81,-176,1],[-49,-101,176],[104,15,110],[223,198,-51],[277,123,48],[486,40,-79],[295,5,123],[-202,128,-152],[-20,54,-29],[214,-57,-53],[-404,-3,33],[-177,78,-40],[-372,56,72],[4,25,235],[563,85,85],[-300,-40,131],[33,151,-140],[-365,-347,57],[176,-191,129],[-190,-107,-136],[-285,-32,114],[281,128,-142],[-320,-163,-28],[-98,-12,5],[203,-1,-95],[-263,166,-127],[136,152,23],[-183,175,100],[164,-134,61],[85,-34,-108],[-104,137,208],[209,126,-56],[-53,-34,-51],[171,5,-48],[-31,-478,194],[-65,314,109],[-156,232,0],[-332,36,-60],[72,47,-90],[81,-141,-265],[-389,-18,235],[185,-63,-74],[386,134,13],[148,184,124],[296,88,107],[-32,99,-17],[101,-38,-9],[-122,-128,119],[-36,-10,38],[-56,-37,-54],[125,101,190],[-39,260,219],[-47,62,-350],[99,-230,-214],[-218,85,366],[-10,-18,137],[4,-144,-47],[47,-428,200],[-145,-98,285],[211,45,-83],[-44,103,59],[-448,-316,44],[291,-23,239],[83,53,2],[152,-197,99],[-64,111,-10],[109,-24,147],[158,15,55],[52,186,211],[-72,-17,63],[-293,73,-214],[-288,215,378],[-347,77,265],[-134,-227,-103],[758,387,201],[247,-9,144],[-79,-119,25],[80,-237,259],[-165,-267,-302],[-223,-3,-99],[117,150,-153],[161,54,303],[-4,-24,19],[102,89,-247],[91,-431,234],[68,-12,-100],[140,200,-13],[-561,93,-35],[-425,-192,263],[294,-92,112],[-134,90,-156],[165,-29,-133],[16,-197,63],[-306,-140,30],[268,15,-51],[115,-41,-155],[69,-42,230],[-157,-162,128],[-159,19,167],[163,96,71],[-71,25,100],[-84,30,-77],[-103,8,36],[-334,-49,95],[169,116,91],[-25,86,260],[197,103,-129],[-425,-128,132],[-220,-307,331],[-141,33,28],[544,360,-106],[77,41,-538],[93,-26,-6],[14,80,165],[26,66,33],[221,349,-481],[100,76,-76],[253,-15,-165],[36,122,9],[373,-82,-225],[119,-168,-15],[-26,131,197],[166,11,-371],[19,214,84],[-108,-127,46],[130,1,77],[-142,-43,69],[423,-110,-108],[393,108,-48],[-160,-6,159],[-186,-71,269],[-474,128,-22],[-56,-24,-103],[2,-155,61],[-100,57,77],[561,176,-408],[175,-278,-143],[173,-137,-138],[195,-70,347],[61,161,63],[226,-153,62],[429,-11,80],[-452,-70,399],[-134,98,161],[-77,-169,128],[129,210,-393],[-179,34,-64],[-192,111,-24],[-22,12,-335],[-106,-246,-128],[77,-86,-64],[-146,87,-116],[607,-92,280],[-69,147,12],[-369,-4,197],[192,328,-32],[-640,47,-140],[171,-40,121],[-22,51,-189],[-380,-114,114],[220,140,-271],[16,228,28],[348,-41,-423],[-240,361,66],[-134,70,-79],[291,-250,-210],[-97,191,48],[-421,80,91],[-52,-21,-205],[-165,50,47],[-165,-183,-74],[126,10,-35],[259,-63,48],[-126,204,-32],[-140,12,59],[37,142,-48],[70,44,378],[359,-257,-40],[-66,146,-263],[395,30,103],[-359,-58,397],[398,247,40],[33,117,-40],[-243,-109,99],[-224,-60,96],[23,-66,68],[195,186,223],[228,86,179],[-157,48,157],[-92,94,3],[-512,84,-139],[25,31,-112],[-362,-359,240],[261,177,14],[289,27,-98],[289,24,-24],[253,137,-71],[338,48,-152],[-10,-82,209],[224,34,-117],[-290,63,432],[-2,62,1],[298,86,-3],[54,-57,-72],[-6,-7,94],[-7,-52,149],[-237,63,251],[-100,-166,-48],[-33,-161,83],[-99,1,-63],[-295,136,-64],[217,8,-210],[-160,-5,-154],[838,-64,-111],[-468,96,17],[147,-45,267],[-152,-30,221],[316,36,-24],[178,163,-119],[83,-95,-170],[-203,-144,74],[-92,34,220],[-229,-32,61],[-3,75,46],[-342,-173,-55],[57,67,254],[81,-102,-361],[251,11,-3],[133,10,17],[227,68,-326],[65,-348,26],[-148,-73,158],[-41,30,56],[22,132,-96],[167,-190,119],[-72,-48,-72],[51,-125,86],[108,71,66],[133,-24,12],[209,0,-1],[14,17,29],[-74,-51,-26],[-299,56,268],[-52,47,26],[-130,39,188],[97,-86,111],[-321,115,167],[-186,7,-133],[-144,124,243],[137,-184,-39],[-29,52,-24],[251,-2,13],[-450,40,8],[-59,-148,276],[236,74,72],[89,52,-254],[-118,104,117],[-80,125,70],[-431,-192,214],[-127,104,-413],[227,-77,-124],[-323,410,-473],[-972,-429,-237],[274,-85,34],[-436,224,-69],[-563,0,-16],[283,39,135],[-444,-17,182],[-203,98,48],[-421,-233,-158],[-44,-247,20]],"GAN":[[50,113,-62],[188,11,-151],[-394,65,229],[-30,252,3],[227,-15,5],[288,88,64],[117,48,-8],[41,120,-53],[-226,289,-273],[205,160,-70],[-34,-31,200],[-161,-192,206],[380,30,-97],[90,157,9],[147,62,-18],[37,152,28],[-299,144,340],[-152,117,302],[282,168,-218],[135,52,34],[393,-62,-62],[189,7,-285],[132,-123,26],[-122,-119,184],[-623,-104,15],[155,180,125],[237,-106,97],[150,132,145],[-59,56,-151],[-217,-144,239],[74,-8,-61],[-266,127,37],[-73,-125,116],[174,135,-193],[293,-72,196],[68,317,48],[-340,-90,152],[-289,155,58],[-90,141,-99],[-230,-396,109],[-347,-57,-119],[-24,74,191],[-104,115,-97],[188,262,42],[-87,-119,-242],[-334,62,7],[31,224,-201],[-94,-31,192],[-61,121,9],[-154,-89,-15],[-136,-69,115],[-330,-8,-33],[6,-148,167],[-56,7,-118],[178,173,38],[-313,-104,153],[218,-43,-80],[-387,24,90],[-125,132,114],[251,140,61],[-34,125,114],[-5,-137,46],[-444,-38,-125],[-157,-64,-83],[251,101,33],[-108,-56,-35],[-108,-138,-119],[-24,77,-66],[170,-51,-34],[-338,-36,24],[175,313,85],[-31,143,-182],[-316,-292,-163],[45,-81,-129],[145,-39,-25],[-210,-41,100],[620,-18,-56],[162,149,-236],[198,8,91],[106,111,-47],[146,18,-381],[137,131,192],[-193,-103,34],[276,-5,143],[-620,-105,211],[119,-165,-277],[73,234,-8],[-226,47,-51],[86,229,-58],[61,-94,-49],[-71,256,21],[296,165,72],[122,192,-24],[366,219,185],[-314,54,133],[43,114,-315],[-482,-419,225],[-63,38,141],[62,-41,-250],[130,86,174],[27,-38,85],[64,52,-248],[44,-252,-56],[-152,133,288],[287,135,-44],[-3,146,-24],[-167,100,-45],[-263,-129,8],[72,-290,232],[15,-11,-246],[-339,-561,234],[-25,157,37],[-70,-303,-132],[43,21,90],[-596,-41,-56],[-288,55,-178],[-9,-57,245],[-223,12,260],[134,13,30],[-126,22,133],[78,-255,44],[-19,133,76],[-596,-338,-217],[282,-46,-158],[-20,3,-52],[79,140,-216],[-163,-20,7],[-359,-14,239],[342,117,95],[-217,59,129],[199,-126,-103],[264,245,52],[-152,121,78],[145,-64,-85],[-7,29,23],[219,174,-23],[-32,88,96],[-108,-261,205],[210,93,131],[-338,-135,-165],[145,-127,-65],[-199,45,-177],[129,-122,-57],[425,109,-65],[346,166,43],[-30,-129,40],[-152,-370,-107],[-58,-197,46],[191,187,-20],[32,224,-48],[-48,244,-15],[154,-34,81],[190,180,-101],[291,82,-13],[58,-295,254],[-211,4,250],[46,43,80],[-400,-196,99],[220,49,-125],[-697,-213,151],[45,-78,-159],[-129,37,15],[22,-22,-207],[19,76,165],[-364,4,322],[-195,49,193],[-94,-255,-34],[134,204,102],[-87,-33,-114],[133,-13,-70],[170,167,99],[4,54,-3],[-804,-131,-77],[204,-67,-100],[272,32,-81],[-313,280,-61],[-360,-121,154],[-358,-205,-52],[317,-37,-91],[329,-222,-26],[-255,68,145],[-40,135,-66],[21,168,-186],[140,166,216],[202,-29,-137],[-150,119,86],[-349,-43,63],[-329,-163,168],[287,20,202],[16,-307,-185],[142,-6,-297],[29,30,-31],[355,5,67],[66,65,153],[148,-51,-337],[93,-38,78],[57,-214,181],[-199,40,157],[150,9,-37],[383,203,189],[9,90,66],[-376,15,48],[-173,-6,155],[7,9,182],[3,-170,-58],[-246,32,-38],[18,-145,18],[231,96,50],[93,37,75],[-545,-251,50],[-351,132,-51],[-70,18,-183],[-126,-38,-79],[82,-112,-148],[148,78,-229],[-177,-4,-166],[175,-51,-100],[359,-227,-115],[-121,29,-133],[-296,162,299],[286,-83,90],[88,10,6],[-16,143,-13],[-1,63,83],[311,101,-16],[320,114,188],[390,73,-57],[292,23,-127],[235,-221,-197],[-148,75,179],[-50,244,10],[376,101,114],[-410,98,-25],[151,5,-1],[74,103,-20],[-233,129,146],[49,92,-139],[301,56,59],[11,54,-74],[133,13,-143],[-42,112,-94],[45,10,-109],[582,75,-232],[153,8,3],[-250,-130,-7],[84,55,49],[-202,-109,205],[174,1,253],[36,15,65],[320,68,-95],[-85,-5,-13],[102,132,156],[28,-297,-139],[382,0,-178],[-29,9,-287],[178,88,-102],[276,7,-49],[-11,-62,-216],[-294,21,322],[81,-141,99],[-172,3,151],[356,29,18],[305,-196,47],[-372,20,81],[-8,-237,-289],[-110,-163,31],[111,153,224],[372,102,52],[126,113,-133],[307,130,50],[-1,129,150],[-33,87,183],[118,52,18],[-167,-227,-134],[-312,59,-326],[498,88,-97],[286,72,130],[-282,-184,-116],[197,197,74],[142,111,144],[-64,18,-177],[217,113,-39],[-93,171,71],[327,44,-111],[-273,64,-94],[-80,294,18],[-48,38,-354],[297,148,-73],[-4,120,-5],[25,112,65],[-149,-64,290],[-30,226,-267],[-49,-228,154],[123,91,44],[182,238,-15],[266,94,-1],[-361,-321,141],[-233,97,-233],[11,331,-264],[-111,54,-32],[-151,-60,33],[-115,-165,-9],[-42,119,-78],[-86,-23,20],[-29,50,6],[-159,-7,150],[13,248,1],[61,-11,130],[-5,194,-205],[-301,-79,-213],[89,-52,163],[22,-37,-239],[-358,-135,-248],[135,169,9],[36,300,-63],[70,117,-325],[289,77,-10],[76,-331,93],[-81,29,191],[277,82,-108],[-308,-114,219],[-302,-137,-122],[48,-64,49],[-33,25,202],[-134,176,261],[26,221,102],[25,-36,383],[29,-92,172],[136,303,-85],[225,-14,-66],[-374,-155,9],[116,113,-215],[236,41,-236],[15,84,-4],[50,-14,147],[142,46,-21],[218,100,120],[351,96,-218],[157,213,-174],[23,-58,-33],[-151,-159,100],[361,137,69],[95,22,-163],[326,-197,-147],[-32,378,58],[299,56,-122],[9,65,-9],[-240,123,-29],[246,98,16],[52,73,98],[-422,-120,396],[-72,-92,16],[-577,3,185],[-337,62,76],[-302,-271,15],[243,-19,128],[434,20,58],[282,139,-28],[273,-50,194],[-14,-356,-76],[48,-172,-104],[-188,171,114],[143,22,-232],[265,76,-57],[-151,96,33],[185,-14,154],[-436,82,238],[81,-114,-142],[-80,200,-56],[-28,68,-131],[86,103,58],[90,186,234],[93,-71,186],[-148,63,345],[-115,47,117],[100,26,182],[106,91,-5],[-82,146,76],[18,-49,-241],[293,38,21],[262,86,-189],[-124,63,30],[99,87,-5],[233,-158,104],[-14,-188,-78],[-66,136,-66],[52,-121,-118],[-475,-334,-143],[-30,34,-159],[-285,-15,12],[254,168,91],[-168,-113,-48],[116,8,-122],[208,6,78],[91,142,21],[-526,-437,-13],[267,-73,-13],[191,173,90],[182,121,186],[-621,-61,-12],[54,13,-258],[371,167,167],[506,151,-143],[99,77,-68],[-518,-162,141],[-3,-111,-226],[-167,-137,-42],[314,114,-185],[-15,116,-159],[270,-9,19],[-259,-51,70],[305,-153,-120],[-178,-318,-26],[-88,135,-182],[-232,-231,-103],[153,52,13],[4,-43,108],[257,-37,-541],[-56,-304,27],[-133,51,-219],[-200,35,195],[88,136,177],[137,100,246],[117,281,-15],[91,140,18],[-135,94,164],[206,-70,15],[255,104,-39],[-99,156,-105],[269,-152,36],[111,89,105],[38,149,173],[183,-12,-2],[363,52,-70],[45,130,-5],[333,60,139],[58,-15,-115],[213,69,-43],[150,286,-28],[-44,49,141],[128,-195,28],[180,209,-104],[282,-69,276],[-166,102,5],[16,126,45],[54,43,83],[-566,-212,173],[86,241,59],[14,25,136],[-153,41,61],[104,-72,-173],[243,20,-136],[-218,42,140],[112,-38,-235],[54,-143,-348],[329,-228,-110],[497,43,-153],[14,37,130],[-20,-40,157],[151,139,114],[-163,145,-65],[-87,61,101],[104,120,-77],[54,173,154],[-59,127,-283],[444,51,27],[-486,-118,-176],[148,107,184],[-327,139,19],[-61,299,-26],[-61,12,42],[37,-128,-162],[-313,139,98],[444,160,-338],[-141,170,124],[149,-92,-210],[-35,-275,-238],[120,-71,-196],[-43,-110,-20],[-24,52,-3],[177,57,-17],[272,25,199],[-78,-307,15],[-162,66,-37],[329,214,62],[124,43,136],[-593,153,45],[71,79,-41],[126,74,68],[196,-20,163],[98,88,208],[144,307,-61],[-141,-157,234],[-74,117,114],[121,28,297],[252,156,-68],[99,74,39],[21,-317,142],[-208,-220,172],[6,38,96]],"MC":[[92,-128,100],[268,-231,-240],[44,-31,-1],[-227,96,151],[26,177,109],[-229,21,-130],[251,45,-21],[-180,155,15],[-110,-64,83],[109,87,86],[599,55,-80],[-216,59,199],[-23,-120,-139],[188,150,112],[-175,10,33],[69,147,65],[196,52,56],[182,-173,-76],[-122,-108,-49],[421,-44,138],[-456,-123,26],[170,142,149],[-88,-76,130],[-45,-187,-198],[-245,36,43],[199,-20,23],[181,-6,72],[-174,-77,-59],[-322,21,-52],[12,80,90],[192,27,-59],[-14,-242,-256],[-357,-202,46],[-242,-91,201],[-90,99,-117],[-48,-140,-67],[240,-203,34],[74,-66,-229],[28,-65,32],[14,245,12],[-274,-15,47],[383,198,85],[412,-93,-119],[-247,-94,-214],[183,8,-224],[-272,5,146],[559,534,145],[-265,-352,-2],[-216,-92,-96],[-31,158,60],[-36,-151,-275],[-126,-23,281],[44,159,-44],[-319,-191,-127],[595,-6,119],[-241,101,92],[-35,-5,-93],[131,-36,-192],[-344,-29,257],[52,-1,50],[369,106,-49],[313,126,257],[59,-161,-233],[464,343,24],[-97,204,-126],[-239,59,-36],[7,-15,57],[397,92,111],[-557,-99,-123],[-328,-180,-64],[261,-140,-19],[-125,-63,156],[157,231,18],[-184,-58,41],[57,-141,-4],[71,389,362],[-227,-75,-224],[-155,26,203],[-193,-123,-339],[-37,-155,-99],[-234,-48,-265],[-397,249,-138],[-294,224,504],[-315,-103,53],[485,-50,-53],[223,111,-38],[-29,-199,-62],[-65,30,-71],[138,181,58],[105,34,11],[-191,20,2],[586,343,108],[-202,-192,166],[81,92,-249],[264,121,-151],[-122,24,24],[-72,-21,-32],[50,232,-351],[-57,23,59],[-94,-267,16],[485,-131,105],[-82,-16,-155],[-84,183,131],[486,267,106],[489,159,148],[-74,4,-97],[281,-115,101],[-44,171,154],[511,206,-216],[-10,-166,-100],[425,177,-83],[-271,-36,-178],[-177,22,195],[176,-297,0],[28,73,269],[-561,-179,86],[-428,147,102],[242,-33,121],[303,96,51],[83,-104,-35],[-34,58,173],[-284,-62,235],[-197,-148,20],[241,52,215],[245,175,116],[650,94,-305],[451,21,15],[370,-161,-224],[-434,-186,57],[153,75,-202],[-629,-97,-63],[135,134,48],[218,80,97],[-186,-52,35],[235,-8,80],[-65,-21,134],[-542,-279,-252],[-636,-206,108],[-70,24,182],[375,64,217],[34,-109,-103],[-400,-194,-68],[230,301,-162],[117,-124,57],[-28,-266,107],[-159,-99,-170],[-172,39,-10],[99,78,222],[-86,-224,138],[-83,156,96],[-28,54,319],[581,122,36],[305,-62,40],[1,54,-112],[-430,-373,-215],[-118,-57,301],[313,-77,39],[-104,-53,31],[179,-10,165],[-307,-46,411],[70,230,59],[168,29,-19],[-207,34,-112],[192,201,93],[-71,61,-27],[266,-213,-88],[-541,-308,183],[255,-52,-241],[-810,-217,370],[128,-52,67],[-422,-112,17],[-16,121,82],[193,-59,131],[458,-53,-152],[377,47,222],[-114,200,65],[79,251,-8],[-251,-103,68],[-424,25,-59],[325,-285,-171],[-457,-195,27],[-41,-37,-22],[64,-129,94],[191,98,105],[90,322,46],[-76,-117,-169],[-335,-183,-24],[100,33,-108],[257,162,3],[-172,57,52],[-391,-72,48],[-240,-8,-211],[377,258,1],[109,-326,-229],[-73,-163,93],[559,-65,-149],[73,257,-140],[77,288,-201],[-345,-116,-82],[232,84,-259],[150,-50,192],[-165,-115,77],[219,112,-240],[157,-116,20],[-385,4,-105],[-346,50,64],[-161,191,-23],[17,50,-80],[138,-46,-68],[384,-76,-389],[453,462,10],[-526,-132,-43],[-44,-164,71],[153,-184,80],[575,135,-38],[-31,92,-243],[54,-40,285],[-40,245,-120],[170,85,-117],[57,195,-11],[-459,-77,-131],[-86,-20,-257],[-438,0,-60],[-699,-3,70],[-189,-219,106],[105,375,133],[115,4,131],[181,223,-40],[-112,-83,120],[422,16,-68],[95,-12,150],[-613,-223,-133],[-632,-247,-157],[-47,162,-1],[-276,-50,170],[-261,-173,73],[-53,93,23],[202,-108,-18],[-50,-180,-263],[197,-9,-157],[-18,169,-316],[-405,-200,212],[86,135,-148],[-301,19,29],[160,9,48],[52,131,153],[-439,-400,108],[336,-82,-303],[36,150,310],[151,-20,-138],[11,-34,-155],[574,372,229],[-246,89,129],[130,214,138],[212,139,78],[-484,-67,-75],[-345,192,318],[383,113,225],[12,39,-155],[118,37,-191],[-6,-5,285],[255,55,48],[20,-19,-163],[-33,-108,-203],[149,92,-257],[-26,149,197],[291,65,-120],[-291,6,76],[363,234,16],[-335,-99,35],[-48,-86,34],[-131,-108,42],[-103,25,57],[-306,-118,219],[-312,-359,-331],[16,15,-8],[343,-323,5],[439,-79,-77],[-199,-159,-64],[402,349,3],[534,108,282],[-17,24,69],[885,290,-79],[276,4,-75],[259,58,53],[12,59,83],[-526,11,-127],[-390,-71,20],[-183,97,-178],[-104,-97,-13],[85,-125,96],[26,-265,-340],[5,-24,-12],[1,41,161],[-298,-218,-189],[88,206,-27],[-682,-364,-162],[-146,-78,5],[-78,147,-70],[-230,37,-217],[116,43,-11],[446,-4,313],[-54,-189,-12],[-289,-154,52],[162,-55,147],[328,277,127],[384,-199,-86],[-231,-16,-76],[-38,277,29],[122,-5,15],[10,75,200],[463,136,108],[-309,-61,152],[247,83,152],[144,209,84],[-90,41,-436],[114,-507,-347],[133,101,-159],[-188,175,-32],[627,119,73],[454,108,-142],[-22,-2,-203],[-62,-112,134],[18,-31,-14],[70,110,-130],[-279,119,-28],[-383,4,92],[-414,-33,128],[112,120,-192],[100,-19,-73],[248,269,323],[371,58,61],[220,65,32],[236,41,-105],[-106,81,25],[102,124,-32],[217,102,-172],[406,7,-259],[-280,-192,-8],[-67,-54,97],[102,72,80],[178,-270,-99],[-593,-93,9],[297,235,70],[-130,55,-61],[8,153,-53],[231,148,-122],[277,159,42],[-202,-155,-95],[158,-104,53],[-334,-82,21],[683,-72,203],[50,77,38],[131,8,230],[-118,152,-63],[-8,-151,53],[407,69,-23],[-299,-80,-243],[-244,-3,219],[783,62,217],[75,-1,72],[25,28,-51],[-377,-286,72],[-68,-92,-4],[228,75,-88],[347,301,125],[277,239,215],[178,127,104],[-295,58,-183],[-211,161,171],[419,43,-175],[-58,12,24],[321,12,55],[-265,26,21],[-199,-63,-25],[-66,255,38],[-59,-310,-181],[-64,-105,206],[-37,190,50],[19,-2,8],[482,-246,-357],[-142,-16,116],[139,-24,157],[292,87,163],[83,-60,103],[39,15,237],[-668,-320,-210],[-92,-46,-230],[-264,-166,368],[505,37,-57],[-309,-327,-56],[-267,-53,-241],[-202,-7,69],[123,-164,109],[-213,62,23],[-372,-105,58],[177,19,243],[286,21,119],[542,392,-132],[-247,181,-118],[-357,-128,62],[-20,-91,-111],[-188,-155,340],[90,154,-45],[-43,-105,-419],[-372,-324,-384],[-322,144,35],[364,133,141],[-240,41,135],[-151,63,110],[-143,-183,-202],[32,61,-105],[16,94,119],[436,273,-114],[473,14,158],[27,-48,-281],[-39,-228,120],[427,-33,36],[-192,-119,113],[-2,262,-23],[284,73,135],[-115,-20,-10],[-222,65,126],[172,263,271],[-95,45,-78],[15,-78,245],[109,-5,188],[-591,-393,82],[25,49,-190],[2,301,186],[55,-47,-63],[-579,-58,146],[-426,-166,-186],[-258,-31,-312],[178,150,-11],[-676,-259,175],[-758,-179,-182],[230,-50,55],[164,306,23],[112,-190,157],[-202,-111,-8],[-423,-35,164],[89,-209,-49],[213,-230,-203],[250,92,80],[521,169,123],[756,111,-119],[126,94,-61],[-277,296,117],[-194,107,15],[-62,79,-177],[106,307,128],[-96,-84,-67],[-62,-59,141],[-470,50,-29],[112,-138,187],[352,211,-201],[237,109,-229],[2,61,104],[57,60,244],[347,-351,-110],[-37,-256,-20],[353,-89,35],[-244,-135,221],[-141,50,-269],[522,189,-4],[167,-169,157],[-81,-37,-72],[-152,82,66],[188,40,88],[-107,315,-178],[356,272,-89],[623,265,184],[16,-21,-29],[116,234,72],[-243,85,172],[189,150,-14],[-248,-164,-265],[74,8,-61],[-807,-320,151],[-175,29,-197],[405,59,51],[650,346,0],[-155,-68,80],[-21,-54,226],[-23,340,80],[501,149,167],[-192,-152,59],[281,64,-189],[-367,-267,-300],[38,179,35],[-615,-130,-21],[587,-101,-87],[479,159,108],[40,63,138],[-215,98,-182],[99,51,-82],[2,-83,-172],[-89,-170,32],[-309,57,-156]],"VG":[1.8057,1.4809,1.7082,1.5655,1.638,1.773,1.4465,1.707,1.7842,1.7632,1.8613,2.364,1.7888,1.9442,1.7779,1.576,1.8,1.8251,2.0892,2.2748],"VM":[2.185,1.9081,2.0916,2.162,1.846,2.1304,2.0634,1.9656,2.0469,2.2428,2.0781,2.0301,2.1131,2.2956,1.9042,1.8707,2.1883,2.0935,1.8805,2.1726],"PX":[[100.0,100.0,100.0],[99.9,100.5,100.5],[97.1,100.2,100.2],[97.7,100.9,99.6],[98.5,99.7,99.5],[97.8,101.1,99.0],[98.3,100.0,97.7],[97.0,100.6,97.2],[92.4,99.5,97.3],[94.2,100.0,95.7],[94.7,98.6,98.8],[97.4,99.3,99.1],[101.3,110.8,100.8],[103.6,106.0,100.9],[102.7,106.3,100.9],[101.1,107.3,100.3],[103.2,107.4,100.2],[101.8,108.1,101.2],[102.1,108.5,101.2],[98.8,110.0,100.2],[97.5,109.9,101.0],[102.3,109.0,99.6],[101.5,108.0,101.0],[102.1,109.8,102.4],[98.8,111.5,102.3],[94.6,112.2,100.7],[95.3,112.1,99.1],[94.2,112.0,98.8],[96.2,112.0,99.0],[96.5,110.4,98.9],[97.6,109.8,98.8],[101.0,109.1,96.0],[100.9,110.1,96.4],[99.1,110.9,95.4],[96.6,109.3,94.8],[94.0,108.9,94.6],[96.9,109.2,94.0],[95.6,108.3,93.9],[93.4,107.6,93.1],[91.9,107.4,91.1],[90.7,106.9,90.7],[89.7,103.3,89.4],[90.9,104.5,88.6],[93.7,106.5,88.9],[97.2,106.9,89.3],[97.6,108.7,89.3],[97.4,109.0,89.4],[95.3,108.1,89.4],[95.7,107.3,88.8],[93.5,107.5,90.3],[96.2,107.6,90.1],[100.5,109.1,90.6],[104.0,108.6,90.5],[97.5,109.6,91.3],[97.5,109.6,89.8],[94.6,108.1,89.5],[92.7,110.1,91.8],[91.7,111.5,92.1],[94.8,113.7,93.6],[93.0,114.6,93.5],[95.8,116.8,94.3],[98.0,118.6,93.6],[102.3,118.5,92.0],[102.4,119.9,92.5],[99.2,119.4,91.2],[82.4,119.8,92.5],[89.8,120.4,90.7],[86.1,120.2,91.2],[86.7,120.9,92.0],[83.6,120.5,89.7],[81.2,120.3,89.9],[82.6,120.8,92.3],[86.9,121.9,92.3],[89.5,124.8,91.0],[90.4,124.3,91.4],[93.0,122.2,93.2],[92.4,124.0,93.8],[91.3,124.2,90.9],[94.1,124.6,91.6],[96.6,124.7,91.7],[97.0,126.2,93.3],[96.9,125.9,93.4],[97.5,120.3,94.9],[93.5,119.1,93.8],[90.7,117.8,94.3],[88.1,116.0,93.0],[91.4,116.6,92.7],[83.6,116.8,93.3],[86.9,119.3,94.3],[79.4,117.5,91.3],[80.7,112.8,91.1],[81.6,113.4,89.3],[76.9,111.1,91.2],[78.4,109.2,92.4],[74.4,104.7,94.7],[75.7,103.3,92.5],[80.6,102.7,92.4],[80.4,101.5,92.1],[84.7,104.8,94.8],[83.2,105.4,96.4],[80.3,105.9,96.3],[81.8,107.8,97.8],[82.5,107.7,98.2],[81.9,108.9,97.8],[84.5,111.8,98.1],[84.0,113.2,98.8],[79.2,113.2,100.2],[77.6,111.8,99.9],[76.3,109.5,99.7],[75.4,110.6,100.7],[76.7,109.8,100.8],[76.8,110.8,100.5],[70.8,103.1,95.2],[65.6,95.4,88.4],[68.0,97.3,87.2],[67.0,98.4,85.4],[79.6,106.3,89.6],[74.9,103.0,84.7],[77.2,107.1,87.4],[77.0,106.5,87.6],[78.1,105.7,87.3],[72.7,104.1,88.3],[70.6,105.2,90.6],[67.4,103.9,89.2],[68.8,106.8,91.7],[71.5,109.2,91.0],[74.1,110.9,92.0],[77.3,110.5,92.0],[75.7,110.3,92.0],[75.9,110.9,91.8],[75.8,110.9,89.5],[77.7,112.0,89.6],[79.7,114.5,90.0],[79.2,114.5,87.5],[79.0,113.0,88.7],[81.5,113.1,88.6],[81.7,115.0,89.9],[81.2,114.8,90.9],[85.6,117.9,92.5],[90.4,119.3,92.7],[94.2,120.5,91.9],[93.8,121.3,92.8],[94.2,121.3,92.5],[94.4,120.1,91.0],[93.5,120.5,89.7],[91.7,118.4,88.6],[92.4,118.2,88.0],[91.4,118.2,88.1],[94.3,120.3,88.5],[93.8,119.5,87.3],[96.9,119.9,87.8],[94.0,119.7,87.5],[95.6,120.0,88.1],[98.3,120.8,88.7],[98.8,119.8,87.5],[97.4,118.8,87.1],[98.6,120.5,89.1],[99.3,121.0,89.7],[100.2,121.8,91.7],[99.4,121.6,93.5],[100.9,121.7,93.8],[98.8,120.2,95.9],[100.7,122.6,96.2],[100.3,122.2,97.5],[101.3,124.2,96.8],[100.1,124.7,98.1],[100.3,126.2,95.5],[102.9,127.6,92.6],[107.4,128.8,92.6],[107.9,131.0,94.0],[109.8,130.2,93.5],[110.0,131.5,92.2],[106.7,131.7,93.4],[109.4,132.4,94.9],[110.9,134.9,95.9],[110.1,133.1,95.0],[111.4,128.9,97.6],[113.4,129.0,97.3],[114.2,131.3,98.3],[114.8,130.7,98.7],[114.2,131.6,97.4],[118.8,130.6,96.5],[119.3,130.3,95.9],[120.4,132.1,95.5],[120.0,132.7,92.1],[119.3,132.6,92.4],[116.3,132.8,92.8],[118.9,135.2,94.0],[120.9,135.1,94.7],[120.8,136.1,94.4],[123.0,135.9,95.3],[122.2,135.4,96.5],[124.8,136.5,95.7],[123.8,135.0,95.4],[120.9,131.9,93.7],[125.3,134.1,91.8],[124.1,132.8,91.7],[124.9,132.8,91.1],[125.8,130.8,90.6],[127.2,131.6,91.3],[126.7,132.0,90.5],[127.5,133.5,90.7],[126.4,132.4,92.0],[126.7,134.1,91.8],[125.6,132.4,91.9],[126.7,132.9,92.1],[122.2,132.5,92.7],[122.1,133.2,93.6],[121.8,132.8,94.3],[123.9,135.0,96.0],[125.1,134.4,96.4],[126.5,136.1,96.2],[126.4,136.4,97.3],[125.4,137.2,97.8],[121.2,137.4,98.6],[118.9,136.6,99.0],[118.8,136.5,96.6],[119.5,138.5,97.0],[116.2,134.2,94.3],[117.1,133.5,94.8],[118.8,135.7,95.5],[123.4,137.0,97.1],[123.3,139.2,96.8],[123.8,139.9,96.8],[123.7,140.8,96.9],[121.7,140.9,99.0],[118.5,142.1,99.5],[122.7,142.7,98.3],[123.0,143.4,97.4],[127.8,142.4,96.7],[124.2,142.5,98.3],[123.2,142.8,98.9],[123.7,142.8,99.7],[124.0,144.0,101.1],[126.6,143.9,98.6],[129.9,143.7,97.3],[130.3,141.6,96.6],[131.5,140.2,96.0],[130.6,141.3,97.7],[129.1,141.6,98.5],[128.8,140.9,98.6],[131.6,139.2,98.4],[134.0,139.9,97.4],[127.5,137.8,95.5],[131.1,141.0,96.9],[125.3,138.3,96.9],[125.2,140.0,96.3],[126.5,136.7,95.5],[127.5,136.3,96.9],[127.1,138.5,97.2],[126.1,136.0,97.3],[125.5,134.7,99.0],[126.8,134.9,100.1],[129.6,137.6,99.6],[133.3,139.3,100.0],[139.9,139.8,99.3],[144.1,139.9,100.5],[141.2,141.7,99.0],[140.9,142.5,98.7],[144.0,141.7,98.2],[138.3,141.6,98.5],[135.9,142.7,98.1],[130.9,143.5,98.8],[131.0,143.9,101.1],[138.5,145.1,102.0],[134.4,144.5,103.4],[134.9,146.7,101.9],[130.1,141.7,102.5],[132.4,139.0,103.8],[129.9,137.5,102.4],[126.2,137.1,103.6],[129.8,138.9,102.1],[125.7,136.6,101.9],[124.5,136.5,101.9],[127.1,136.5,100.9],[123.8,138.8,99.7],[125.5,140.9,99.9],[123.2,143.4,100.9],[125.2,141.5,101.5],[126.3,141.0,100.4],[125.0,142.9,102.5],[127.6,144.7,102.0],[127.0,144.3,101.4],[129.2,144.3,101.0],[128.8,137.6,102.9],[127.9,142.0,104.1],[125.9,145.3,104.1],[121.8,145.9,103.4],[122.7,146.5,102.5],[123.7,144.5,99.8],[119.0,144.2,102.2],[121.2,143.3,101.4],[126.0,145.3,101.6],[127.9,148.0,102.8],[131.7,149.3,103.9],[131.3,150.7,103.8],[132.6,150.2,103.7],[131.0,148.3,104.9],[130.5,148.1,105.3],[129.8,147.6,104.7],[131.5,149.0,106.8],[130.9,153.0,109.1],[130.3,153.9,105.4],[131.6,150.4,103.1],[128.8,151.7,107.0],[128.7,151.4,108.5],[128.7,149.3,108.0],[129.3,143.0,110.1],[127.5,141.6,113.3],[130.2,142.3,112.4],[129.6,143.7,113.1],[124.0,139.3,113.6],[127.6,138.9,116.3],[128.7,139.7,116.3],[130.6,136.9,117.5],[129.8,138.5,117.4],[131.2,138.1,119.1],[133.3,138.4,119.8],[134.0,140.9,122.3],[133.0,140.7,123.1],[129.2,141.7,120.5],[125.5,144.8,125.1],[121.3,145.9,128.5],[119.6,142.7,127.2],[129.1,148.3,129.7],[132.3,148.2,131.6],[131.2,146.4,131.9],[132.3,143.0,135.4],[130.1,139.2,131.4],[127.3,139.2,130.1],[128.8,141.3,128.1],[130.8,142.0,132.0],[130.8,141.7,132.3],[132.1,143.0,129.1],[133.3,136.9,132.1],[134.2,136.8,130.8],[136.1,139.5,130.6],[128.7,140.8,130.2],[123.3,138.1,133.6],[127.0,136.9,135.1],[125.3,138.1,133.0],[127.4,137.7,131.3],[127.6,135.0,132.1],[123.8,133.2,132.5],[127.1,133.4,131.8],[128.6,132.8,129.8],[129.5,132.3,132.8],[127.5,130.1,134.5],[125.5,130.4,136.8],[127.5,131.6,137.8],[126.6,132.0,139.2],[125.6,132.4,138.1],[124.3,132.5,138.6],[120.2,131.8,139.9],[122.3,133.4,141.2],[122.0,134.5,144.9],[124.4,135.9,143.1],[119.2,134.2,145.0],[116.6,130.1,149.8],[115.0,130.5,150.2],[121.4,135.3,148.7],[122.3,135.9,140.9],[123.5,135.5,140.8],[123.7,136.6,143.2],[124.0,137.5,143.6],[126.7,142.4,136.9],[128.0,143.5,135.9],[131.3,143.3,133.6],[131.8,145.0,133.7],[136.8,143.8,130.8],[138.4,141.4,130.6],[138.1,143.3,133.2],[140.4,143.5,128.3],[140.7,146.6,129.4],[139.1,144.7,130.0],[141.0,144.7,131.0],[139.0,144.1,131.9],[145.0,142.5,130.5],[150.8,144.1,129.8],[148.4,144.0,131.9],[145.7,143.0,135.5],[138.9,144.8,135.2],[138.1,144.5,133.8],[138.2,142.2,134.7],[136.8,143.0,135.7],[144.7,145.6,130.3],[147.2,141.6,128.4],[149.8,139.7,126.7],[152.8,138.7,131.2],[153.7,141.0,132.0],[157.2,138.8,132.8],[164.1,138.7,133.9],[156.9,137.7,139.3],[154.8,139.0,141.6],[153.6,136.7,143.4],[155.6,139.6,137.9],[152.8,140.1,137.0],[149.9,141.7,136.7],[149.6,141.8,132.2],[148.0,138.4,130.5],[149.1,137.2,129.6],[147.0,138.4,128.1],[156.2,137.1,131.8],[155.1,139.1,131.9],[149.5,139.1,134.6],[152.4,143.7,134.1],[142.9,144.4,132.3],[145.4,143.8,133.9],[145.1,144.6,131.4],[139.7,142.9,132.9],[142.8,144.9,129.3],[143.0,148.3,129.7],[148.1,147.7,124.3],[144.6,153.1,125.1],[142.6,154.2,124.2],[146.8,150.4,121.6],[145.4,153.3,122.2],[139.4,154.5,123.3],[138.7,154.2,120.8],[136.4,154.9,121.3],[134.2,152.1,120.5],[135.9,152.3,120.0],[139.4,151.3,120.6],[137.7,154.5,120.2],[135.8,154.6,120.9],[136.3,156.8,120.4],[137.2,157.5,125.0],[142.3,153.5,124.5],[141.3,155.8,121.3],[147.0,156.3,122.5],[141.8,155.4,127.5],[147.6,159.2,128.0],[148.1,161.1,127.5],[144.5,159.4,128.8],[141.3,158.4,130.0],[141.7,157.4,130.9],[144.5,160.3,133.8],[147.8,161.7,136.3],[145.5,162.5,138.4],[144.2,164.0,138.5],[137.0,165.4,136.5],[137.3,165.9,135.0],[132.4,160.1,138.3],[135.9,162.9,138.5],[139.9,163.4,137.1],[144.0,163.8,136.8],[147.7,166.0,135.8],[152.8,166.8,133.8],[152.6,165.5,136.6],[156.1,166.0,135.0],[151.6,167.1,141.0],[151.6,168.1,141.0],[156.2,169.6,140.9],[157.0,168.6,139.9],[156.9,168.5,141.2],[156.8,167.6,143.4],[153.1,168.7,147.0],[151.6,165.9,146.3],[151.1,163.3,147.5],[149.6,163.3,146.6],[145.3,165.5,145.7],[148.5,165.7,142.6],[146.1,165.6,140.5],[158.9,164.5,138.9],[151.6,166.1,139.1],[153.9,165.3,142.9],[151.5,164.8,146.1],[156.4,165.4,145.7],[159.2,168.2,144.0],[160.5,166.6,141.6],[157.3,164.2,142.6],[155.9,164.7,145.8],[152.4,164.2,146.7],[152.3,165.4,147.4],[147.2,162.6,146.6],[148.0,163.7,150.3],[149.2,162.0,145.0],[153.0,162.2,145.0],[155.1,162.4,145.2],[158.6,163.5,140.6],[159.7,157.9,140.9],[157.3,156.8,143.2],[156.7,157.2,144.0],[157.0,159.3,142.6],[159.7,156.3,144.3],[158.5,155.6,143.3],[159.3,153.6,144.5],[161.1,154.7,145.5],[163.2,154.4,145.6],[166.7,154.4,145.6],[166.9,154.6,146.0],[165.7,153.8,145.7],[160.8,154.7,149.6],[160.0,155.4,150.0],[157.9,156.0,152.9],[159.4,154.7,154.6],[154.4,156.5,157.2],[151.6,156.6,155.1],[149.4,158.6,158.9],[151.5,155.7,158.3],[151.0,156.5,157.9],[154.9,156.4,158.1],[148.1,157.1,158.3],[147.2,154.8,162.7],[150.7,155.9,163.9],[152.1,156.7,159.7],[150.3,158.4,161.6],[149.1,160.4,162.7],[142.8,157.3,166.3],[141.0,159.0,159.5],[144.2,157.7,157.6],[139.6,164.3,150.3],[126.7,157.5,146.8],[130.2,156.1,147.3],[124.7,159.7,146.3],[117.8,159.7,146.0],[121.2,160.3,148.0],[116.0,160.0,150.7],[113.6,161.6,151.5],[108.9,157.9,149.1],[108.5,154.0,149.4]],"pxDates":["2024-10-21","2024-10-22","2024-10-23","2024-10-24","2024-10-25","2024-10-28","2024-10-29","2024-10-30","2024-10-31","2024-11-01","2024-11-04","2024-11-05","2024-11-06","2024-11-07","2024-11-08","2024-11-11","2024-11-12","2024-11-13","2024-11-14","2024-11-15","2024-11-18","2024-11-19","2024-11-20","2024-11-21","2024-11-22","2024-11-25","2024-11-26","2024-11-27","2024-11-29","2024-12-02","2024-12-03","2024-12-04","2024-12-05","2024-12-06","2024-12-09","2024-12-10","2024-12-11","2024-12-12","2024-12-13","2024-12-16","2024-12-17","2024-12-18","2024-12-19","2024-12-20","2024-12-23","2024-12-24","2024-12-26","2024-12-27","2024-12-30","2024-12-31","2025-01-02","2025-01-03","2025-01-06","2025-01-07","2025-01-08","2025-01-10","2025-01-13","2025-01-14","2025-01-15","2025-01-16","2025-01-17","2025-01-21","2025-01-22","2025-01-23","2025-01-24","2025-01-27","2025-01-28","2025-01-29","2025-01-30","2025-01-31","2025-02-03","2025-02-04","2025-02-05","2025-02-06","2025-02-07","2025-02-10","2025-02-11","2025-02-12","2025-02-13","2025-02-14","2025-02-18","2025-02-19","2025-02-20","2025-02-21","2025-02-24","2025-02-25","2025-02-26","2025-02-27","2025-02-28","2025-03-03","2025-03-04","2025-03-05","2025-03-06","2025-03-07","2025-03-10","2025-03-11","2025-03-12","2025-03-13","2025-03-14","2025-03-17","2025-03-18","2025-03-19","2025-03-20","2025-03-21","2025-03-24","2025-03-25","2025-03-26","2025-03-27","2025-03-28","2025-03-31","2025-04-01","2025-04-02","2025-04-03","2025-04-04","2025-04-07","2025-04-08","2025-04-09","2025-04-10","2025-04-11","2025-04-14","2025-04-15","2025-04-16","2025-04-17","2025-04-21","2025-04-22","2025-04-23","2025-04-24","2025-04-25","2025-04-28","2025-04-29","2025-04-30","2025-05-01","2025-05-02","2025-05-05","2025-05-06","2025-05-07","2025-05-08","2025-05-09","2025-05-12","2025-05-13","2025-05-14","2025-05-15","2025-05-16","2025-05-19","2025-05-20","2025-05-21","2025-05-22","2025-05-23","2025-05-27","2025-05-28","2025-05-29","2025-05-30","2025-06-02","2025-06-03","2025-06-04","2025-06-05","2025-06-06","2025-06-09","2025-06-10","2025-06-11","2025-06-12","2025-06-13","2025-06-16","2025-06-17","2025-06-18","2025-06-20","2025-06-23","2025-06-24","2025-06-25","2025-06-26","2025-06-27","2025-06-30","2025-07-01","2025-07-02","2025-07-03","2025-07-07","2025-07-08","2025-07-09","2025-07-10","2025-07-11","2025-07-14","2025-07-15","2025-07-16","2025-07-17","2025-07-18","2025-07-21","2025-07-22","2025-07-23","2025-07-24","2025-07-25","2025-07-28","2025-07-29","2025-07-30","2025-07-31","2025-08-01","2025-08-04","2025-08-05","2025-08-06","2025-08-07","2025-08-08","2025-08-11","2025-08-12","2025-08-13","2025-08-14","2025-08-15","2025-08-18","2025-08-19","2025-08-20","2025-08-21","2025-08-22","2025-08-25","2025-08-26","2025-08-27","2025-08-28","2025-08-29","2025-09-02","2025-09-03","2025-09-04","2025-09-05","2025-09-08","2025-09-09","2025-09-10","2025-09-11","2025-09-12","2025-09-15","2025-09-16","2025-09-17","2025-09-18","2025-09-19","2025-09-22","2025-09-23","2025-09-24","2025-09-25","2025-09-26","2025-09-29","2025-09-30","2025-10-01","2025-10-02","2025-10-03","2025-10-06","2025-10-07","2025-10-08","2025-10-09","2025-10-10","2025-10-13","2025-10-14","2025-10-15","2025-10-16","2025-10-17","2025-10-20","2025-10-21","2025-10-22","2025-10-23","2025-10-24","2025-10-27","2025-10-28","2025-10-29","2025-10-30","2025-10-31","2025-11-03","2025-11-04","2025-11-05","2025-11-06","2025-11-07","2025-11-10","2025-11-11","2025-11-12","2025-11-13","2025-11-14","2025-11-17","2025-11-18","2025-11-19","2025-11-20","2025-11-21","2025-11-24","2025-11-25","2025-11-26","2025-11-28","2025-12-01","2025-12-02","2025-12-03","2025-12-04","2025-12-05","2025-12-08","2025-12-09","2025-12-10","2025-12-11","2025-12-12","2025-12-15","2025-12-16","2025-12-17","2025-12-18","2025-12-19","2025-12-22","2025-12-23","2025-12-24","2025-12-26","2025-12-29","2025-12-30","2025-12-31","2026-01-02","2026-01-05","2026-01-06","2026-01-07","2026-01-08","2026-01-09","2026-01-12","2026-01-13","2026-01-14","2026-01-15","2026-01-16","2026-01-20","2026-01-21","2026-01-22","2026-01-23","2026-01-26","2026-01-27","2026-01-28","2026-01-29","2026-01-30","2026-02-02","2026-02-03","2026-02-04","2026-02-05","2026-02-06","2026-02-09","2026-02-10","2026-02-11","2026-02-12","2026-02-13","2026-02-17","2026-02-18","2026-02-19","2026-02-20","2026-02-23","2026-02-24","2026-02-25","2026-02-26","2026-02-27","2026-03-02","2026-03-03","2026-03-04","2026-03-05","2026-03-06","2026-03-09","2026-03-10","2026-03-11","2026-03-12","2026-03-13","2026-03-16","2026-03-17","2026-03-18","2026-03-19","2026-03-20","2026-03-23","2026-03-24","2026-03-25","2026-03-26","2026-03-27","2026-03-30","2026-03-31","2026-04-01","2026-04-02","2026-04-06","2026-04-07","2026-04-08","2026-04-09","2026-04-10","2026-04-13","2026-04-14","2026-04-15","2026-04-16","2026-04-17","2026-04-20","2026-04-21","2026-04-22","2026-04-23","2026-04-24","2026-04-27","2026-04-28","2026-04-29","2026-04-30","2026-05-01","2026-05-04","2026-05-05","2026-05-06","2026-05-07","2026-05-08","2026-05-11","2026-05-12","2026-05-13","2026-05-14","2026-05-15","2026-05-18","2026-05-19","2026-05-20","2026-05-21","2026-05-22","2026-05-26","2026-05-27","2026-05-28","2026-05-29","2026-06-01","2026-06-02","2026-06-03","2026-06-04","2026-06-05","2026-06-08","2026-06-09","2026-06-10","2026-06-11","2026-06-12","2026-06-15","2026-06-16","2026-06-17","2026-06-18","2026-06-22","2026-06-23","2026-06-24","2026-06-25","2026-06-26","2026-06-29","2026-06-30","2026-07-01","2026-07-02","2026-07-06","2026-07-07","2026-07-08","2026-07-09","2026-07-10","2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04","2026-09-08","2026-09-09","2026-09-10","2026-09-11","2026-09-14","2026-09-15","2026-09-16","2026-09-17","2026-09-18","2026-09-21","2026-09-22","2026-09-23","2026-09-24","2026-09-25","2026-09-28","2026-09-29","2026-09-30","2026-10-01","2026-10-02","2026-10-05","2026-10-06","2026-10-07","2026-10-08","2026-10-09","2026-10-12","2026-10-13","2026-10-14","2026-10-15","2026-10-16","2026-10-19","2026-10-20","2026-10-21","2026-10-22","2026-10-23","2026-10-26","2026-10-27","2026-10-28","2026-10-29","2026-10-30","2026-11-02","2026-11-03","2026-11-04","2026-11-05","2026-11-06","2026-11-09","2026-11-10","2026-11-11","2026-11-12","2026-11-13","2026-11-16","2026-11-17"],"LD":[1.3973,1.3856,1.3804,1.3788,1.3723,1.3692,1.3573,1.3515,1.3479,1.3398,1.3349,1.3285,1.3201,1.3179,1.3134,1.3094,1.2999,1.2993,1.2906,1.2885,1.2749,1.2674,1.2632,1.2577,1.2576,1.2548,1.2697,1.2654,1.2926,1.306,1.3068,1.3217,1.3355,1.3279,1.3217,1.323,1.3182,1.3179,1.3381,1.3434,1.3398,1.3453,1.3597,1.3632,1.3855,1.3969,1.4119,1.4221,1.4408,1.4441,1.4569,1.4626,1.4447,1.4357,1.4104,1.4032,1.3801,1.358,1.335,1.3097,1.2903,1.2788,1.265,1.2595,1.2558,1.2615,1.2743,1.2861,1.2978,1.32,1.3443,1.37,1.399,1.4095,1.4129,1.4194,1.4217,1.4177,1.3806,1.3693,1.3437,1.3297,1.3117,1.2866,1.28,1.2635,1.2503,1.2472,1.2461,1.2445,1.247,1.2535,1.2743,1.2847,1.2838,1.2958,1.3151,1.3296,1.3515,1.3682,1.37,1.3913,1.4062,1.4159,1.4289,1.442,1.4483,1.4462,1.4512,1.4553,1.4523,1.4345,1.4299,1.4167,1.3932,1.3706,1.3508,1.3302,1.3098,1.2774,1.2565,1.2367,1.2133,1.1972,1.1811,1.1737,1.1692,1.1739,1.1731,1.1973,1.2139,1.2277,1.2588,1.2913,1.3239,1.3553,1.4066,1.432,1.4563,1.5043,1.5036,1.5403,1.5511,1.5511,1.5464,1.5303,1.5127,1.4987,1.463,1.4514,1.4149,1.3992,1.3707,1.3459,1.327,1.3103,1.2883,1.2856,1.27,1.2655,1.2587,1.2565,1.2539,1.2547,1.2606,1.2633,1.2701,1.2727,1.3002,1.3038,1.325,1.3375,1.3463,1.3609,1.3843,1.4043,1.4013,1.4243,1.4426,1.4466,1.4587,1.4519,1.4518,1.4534,1.4533,1.4507,1.4508,1.4382,1.4243,1.4157,1.4053,1.3889,1.3777,1.3637,1.3526,1.3375,1.3237,1.3109,1.2998,1.2971,1.2915,1.2768,1.2766,1.2803,1.279,1.2924,1.2873,1.2975,1.306,1.3448,1.3402,1.3758,1.3806,1.4124,1.4136,1.4242,1.4437,1.4572,1.4592,1.4674,1.4432,1.4501,1.4437,1.4302,1.4173,1.4145,1.4032,1.388,1.3656,1.3645,1.3605,1.3578,1.3471,1.3351,1.3353,1.334,1.3335,1.3393,1.3356,1.332,1.3441,1.3462,1.3418,1.352,1.3592,1.3583,1.3613,1.3635,1.3701,1.3703,1.3722,1.3793,1.3804,1.3917,1.3837,1.3901,1.3844,1.394,1.3926,1.39,1.3861,1.3836,1.3828,1.3881,1.3823,1.378,1.3761,1.3677,1.3671,1.3652,1.3705,1.364,1.3564,1.3521,1.3489,1.3546,1.3484,1.3437,1.3443,1.349,1.3468,1.3444,1.3564,1.35,1.3625,1.3653,1.3668,1.3697,1.3799,1.3819,1.389,1.3884,1.4027,1.3938,1.3985,1.3932,1.389,1.3885,1.384,1.3816,1.3731,1.3653,1.3607,1.3672,1.3618,1.3625,1.3661,1.3712,1.3718,1.3845,1.3829,1.384,1.3883,1.3851,1.3858,1.3845,1.3863,1.3782,1.3806,1.3838,1.3732,1.3654,1.3689,1.3641,1.3755,1.3742,1.3751,1.3793,1.3819,1.3827,1.3906,1.3891,1.3981,1.3985,1.3967,1.3908,1.3837,1.3753,1.3718,1.362,1.362,1.3592,1.3473,1.35,1.3558,1.3539,1.3513,1.3662,1.3627,1.3701,1.3635,1.3729,1.374,1.3849,1.3813,1.3852,1.3716,1.377,1.3692,1.3667,1.3639,1.3595,1.3613,1.3622,1.3529,1.3578,1.3502,1.3655,1.3696,1.3735,1.3708,1.3774,1.3792,1.3832,1.3807,1.3801,1.383,1.382,1.3816,1.377,1.3793,1.3821,1.3846,1.3759,1.3798,1.385,1.3838,1.3809,1.3838,1.3901,1.3887,1.3906,1.3834,1.3848,1.3888,1.3887,1.384,1.3864,1.3839,1.3817],"LG":[0.723,0.73,0.7377,0.7421,0.747,0.7525,0.7536,0.7617,0.7666,0.7722,0.774,0.7775,0.7837,0.7836,0.7889,0.7943,0.7941,0.7965,0.8055,0.8123,0.8189,0.8269,0.8338,0.8467,0.8417,0.8388,0.8303,0.8305,0.8038,0.7934,0.7968,0.7828,0.783,0.7814,0.8034,0.8046,0.8122,0.8236,0.8271,0.8341,0.8548,0.8507,0.8519,0.8503,0.8337,0.8273,0.8188,0.8105,0.7909,0.7861,0.7741,0.784,0.8016,0.8188,0.8313,0.8474,0.884,0.9164,0.947,0.9641,0.989,1.0121,1.0172,1.0304,1.0045,1.0049,0.9841,0.9574,0.936,0.896,0.8775,0.8592,0.8385,0.8363,0.8449,0.8483,0.8566,0.8729,0.9142,0.9402,0.9685,1.0046,1.048,1.0926,1.1028,1.1101,1.1121,1.1131,1.1125,1.0818,1.0648,1.0279,0.995,0.9674,0.9412,0.9057,0.8769,0.8521,0.8221,0.8004,0.7783,0.7521,0.7417,0.7274,0.7138,0.7019,0.6924,0.6903,0.686,0.6762,0.683,0.6906,0.701,0.7125,0.7269,0.7506,0.7717,0.7966,0.8176,0.8457,0.877,0.9049,0.9332,0.9501,0.9766,0.9821,0.9798,0.9696,0.957,0.9408,0.9122,0.8955,0.858,0.8297,0.7922,0.7695,0.722,0.7138,0.6942,0.6712,0.6628,0.6523,0.6469,0.6545,0.6719,0.6895,0.7136,0.7255,0.7763,0.7996,0.8429,0.8762,0.9131,0.9424,0.9754,1.0114,1.0301,1.0444,1.0567,1.0575,1.0702,1.0596,1.0488,1.036,1.0139,0.9975,0.9842,0.9553,0.9395,0.9043,0.8749,0.8564,0.8356,0.8254,0.7886,0.7766,0.7648,0.7359,0.7245,0.7189,0.7078,0.7181,0.7084,0.7066,0.7102,0.7122,0.7118,0.717,0.7372,0.7522,0.7537,0.7636,0.7771,0.7993,0.8087,0.8288,0.8463,0.8572,0.8666,0.8763,0.8801,0.8902,0.8975,0.8905,0.8967,0.8801,0.8827,0.8767,0.8616,0.8299,0.8316,0.7957,0.7973,0.7803,0.7791,0.7754,0.7739,0.7749,0.7837,0.7744,0.8153,0.8192,0.8197,0.8545,0.8741,0.8815,0.8984,0.9313,0.954,0.9613,0.967,0.9789,0.9862,0.9863,0.9861,0.9834,0.9766,0.9735,0.961,0.9545,0.9441,0.9217,0.9238,0.9011,0.8859,0.8747,0.8624,0.8499,0.8355,0.8201,0.8145,0.8028,0.7916,0.7847,0.7804,0.7685,0.7703,0.7565,0.7511,0.7505,0.7498,0.7501,0.7464,0.7398,0.7482,0.7433,0.7474,0.75,0.7499,0.7493,0.7515,0.7547,0.7564,0.7585,0.7592,0.7603,0.7612,0.7652,0.7644,0.7683,0.7647,0.7762,0.7623,0.7647,0.7568,0.7597,0.764,0.7652,0.7607,0.7649,0.7618,0.7686,0.7542,0.7755,0.7778,0.7891,0.7964,0.8115,0.8135,0.8217,0.8338,0.836,0.8459,0.8441,0.8528,0.8501,0.8459,0.8412,0.8371,0.8323,0.8192,0.8179,0.8073,0.8149,0.8033,0.8081,0.8009,0.8019,0.7992,0.7943,0.8013,0.8002,0.799,0.7962,0.7931,0.7926,0.7909,0.788,0.781,0.7777,0.7704,0.7764,0.7671,0.7706,0.7776,0.785,0.7875,0.8046,0.8073,0.8219,0.8318,0.8316,0.8399,0.8378,0.8301,0.8422,0.8339,0.8286,0.8233,0.8178,0.8181,0.8067,0.812,0.8009,0.8028,0.8037,0.8078,0.8099,0.8142,0.8151,0.82,0.8222,0.8264,0.8338,0.8351,0.8414,0.8401,0.8329,0.8282,0.8222,0.8256,0.8217,0.8209,0.8194,0.8218,0.8213,0.8176,0.8224,0.8166,0.8288,0.8195,0.8159,0.8192,0.8172,0.813,0.8112,0.8125,0.8098,0.8014,0.8035,0.7965,0.7933,0.788,0.7851,0.7866,0.7864,0.7884,0.7872,0.7899,0.7858]};</script>
+<script>
+"use strict";
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const STILL=/still/.test(location.search);if(STILL)document.body.classList.add('still');
+const stage=$('#stage'),slides=$$('.slide');let cur=0,SCALE=1;
+const F=(w,s)=>w+' '+s+'px Inter,system-ui,-apple-system,Segoe UI,sans-serif';
+const MES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const fdate=s=>{const a=s.split('-');return (+a[2])+'-'+MES[+a[1]-1]+'-'+a[0]};
+const pct=(v,d=2)=>(v<0?'−':'')+Math.abs(v).toFixed(d)+' %';
+const num=(v,d=2)=>(v<0?'−':'')+Math.abs(v).toFixed(d);
+const mean=a=>a.reduce((x,y)=>x+y,0)/a.length;
+const sdv=a=>{const m=mean(a);return Math.sqrt(a.reduce((x,y)=>x+(y-m)*(y-m),0)/(a.length-1))};
+const kurt=a=>{const m=mean(a),n=a.length;let m2=0,m4=0;a.forEach(x=>{const d=(x-m)*(x-m);m2+=d;m4+=d*d});m2/=n;m4/=n;return m4/(m2*m2)-3};
+const srt=a=>[...a].sort((x,y)=>x-y);
+const quant=(s,q)=>{const h=(s.length-1)*q,i=Math.floor(h);return s[i]+(h-i)*((i+1<s.length?s[i+1]:s[i])-s[i])};
+const phi=x=>Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);
+function invN(p){const a=[-39.69683028665376,220.9460984245205,-275.9285104469687,138.357751867269,-30.66479806614716,2.506628277459239],b=[-54.47609879822406,161.5858368580409,-155.6989798598866,66.80131188771972,-13.28068155288572],c=[-.007784894002430293,-.3223964580411365,-2.400758277161838,-2.549732539343734,4.374664141464968,2.938163982698783],d=[.007784695709041462,.3224671290700398,2.445134137142996,3.754408661907416],pl=.02425;let q,r;
+if(p<pl){q=Math.sqrt(-2*Math.log(p));return(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)}
+if(p>1-pl){q=Math.sqrt(-2*Math.log(1-p));return-(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1)}
+q=p-.5;r=q*q;return(((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1)}
+function erfc(x){const z=Math.abs(x),t=1/(1+.5*z),y=t*Math.exp(-z*z-1.26551223+t*(1.00002368+t*(.37409196+t*(.09678418+t*(-.18628806+t*(.27886807+t*(-1.13520398+t*(1.48851587+t*(-.82215223+t*.17087277)))))))));return x>=0?y:2-y}
+const ease=x=>1-Math.pow(1-Math.max(0,Math.min(1,x)),3);
+
+/* ---------- datos ---------- */
+const HR=DATA.R.map(r=>r.map(v=>v/100));                 // % log
+const port=r=>(Math.exp(r[0]/100)+Math.exp(r[1]/100)+Math.exp(r[2]/100)-3)/3*100;
+const HP=HR.slice(0,500).map(port),HPs=srt(HP);
+const tailQ=HPs[24];
+const mk=(rows,scale)=>rows.map((r,i)=>{const x=r.map(v=>v/scale);return[x[0]/10,x[1]/10,x[2]/10,port(x),i]});
+const histPts=mk(DATA.R.slice(0,500),100),ganPts=mk(DATA.GAN,100),mcPts=mk(DATA.MC,100);
+const BT=Array.from({length:20},(_,i)=>({d:DATA.dates[500+i],r:port(HR[500+i]),g:DATA.VG[i],m:DATA.VM[i]}));
+
+/* ---------- tooltip ---------- */
+const tip=$('#tip');
+function showTip(h,x,y){tip.innerHTML=h;tip.style.display='block';const w=tip.offsetWidth,hh=tip.offsetHeight;tip.style.left=Math.min(innerWidth-w-12,x+18)+'px';tip.style.top=Math.max(12,Math.min(innerHeight-hh-12,y-hh-14))+'px'}
+function hideTip(){tip.style.display='none'}
+
+/* ---------- vistas ---------- */
+function track(o,cv){cv.addEventListener('pointermove',e=>{const r=cv.getBoundingClientRect();o.mx=(e.clientX-r.left)/r.width*o.W;o.my=(e.clientY-r.top)/r.height*o.H;o.cX=e.clientX;o.cY=e.clientY});cv.addEventListener('pointerleave',()=>{o.mx=-1;hideTip()})}
+class C2{constructor(cv,draw){this.cv=cv;this.g=cv.getContext('2d');this.draw=draw;this.mx=-1;this.t0=0;track(this,cv);this.resize()}
+resize(){const W=this.cv.offsetWidth,H=this.cv.offsetHeight;if(!W)return;this.W=W;this.H=H;const d=(devicePixelRatio||1)*SCALE;this.cv.width=Math.round(W*d);this.cv.height=Math.round(H*d);this.g.setTransform(d,0,0,d,0,0)}
+enter(t){this.t0=STILL?-1e9:t}
+frame(t){this.g.clearRect(0,0,this.W,this.H);this.draw(this,t)}}
+class V3{constructor(cv,o){Object.assign(this,{cv,g:cv.getContext('2d'),yaw:.6,pitch:.38,zoom:1,auto:.2,dist:4,osc:0,cx:.5,cy:.5,last:-1e9,drag:null,mx:-1,fit:v=>Math.min(v.W,v.H)*.4},o);this.y0=this.yaw;this.p0=this.pitch;track(this,cv);
+cv.style.cursor='grab';cv.style.touchAction='none';
+cv.addEventListener('pointerdown',e=>{this.drag=[e.clientX,e.clientY,this.yaw,this.pitch];cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing';hideTip()});
+cv.addEventListener('pointermove',e=>{if(!this.drag)return;const k=cv.getBoundingClientRect().width/this.W;this.yaw=this.drag[2]+(e.clientX-this.drag[0])/k*.008;this.pitch=Math.max(-1.35,Math.min(1.35,this.drag[3]+(e.clientY-this.drag[1])/k*.006));this.last=performance.now()});
+const up=()=>{this.drag=null;cv.style.cursor='grab';this.last=performance.now()};cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+cv.addEventListener('wheel',e=>{e.preventDefault();this.zoom=Math.max(.5,Math.min(3,this.zoom*Math.exp(-e.deltaY*.0012)));this.last=performance.now()},{passive:false});
+cv.addEventListener('dblclick',()=>{this.yaw=this.y0;this.pitch=this.p0;this.zoom=1;this.last=-1e9});this.resize()}
+resize(){const W=this.cv.offsetWidth,H=this.cv.offsetHeight;if(!W)return;this.W=W;this.H=H;const d=(devicePixelRatio||1)*SCALE;this.cv.width=Math.round(W*d);this.cv.height=Math.round(H*d);this.g.setTransform(d,0,0,d,0,0);this.S=this.fit(this)}
+enter(){}
+pr(x,y,z){const c=Math.cos(this.yaw),s=Math.sin(this.yaw),cp=Math.cos(this.pitch),sp=Math.sin(this.pitch),X=x*c+z*s,Z=-x*s+z*c,Y=y*cp-Z*sp,Z2=y*sp+Z*cp,f=this.dist/(this.dist+Z2),S=this.S*this.zoom;return[this.W*this.cx+X*S*f,this.H*this.cy-Y*S*f,Z2,f]}
+frame(t,dt){if(!this.drag&&t-this.last>2500){if(this.osc){const tg=this.y0+this.osc*Math.sin(t/1000*.3);this.yaw+=(tg-this.yaw)*Math.min(1,dt*1.2)}else this.yaw+=this.auto*dt}
+this.g.clearRect(0,0,this.W,this.H);this.draw(this,t,dt)}}
+function ln(g,a,b){g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke()}
+function dot(g,p,r,col,al){g.beginPath();g.fillStyle='rgba('+col+','+al+')';g.arc(p[0],p[1],r,0,6.2832);g.fill()}
+
+/* nube 3D genérica */
+function cloud(v,sets,o){const g=v.g;g.lineWidth=1;g.strokeStyle='rgba(169,181,210,.12)';
+for(let k=-4;k<=4;k++){const u=k/4;ln(g,v.pr(u,-1,-1),v.pr(u,-1,1));ln(g,v.pr(-1,-1,u),v.pr(1,-1,u))}
+g.strokeStyle='rgba(169,181,210,.42)';ln(g,v.pr(-1,0,0),v.pr(1,0,0));ln(g,v.pr(0,-1,0),v.pr(0,1,0));ln(g,v.pr(0,0,-1),v.pr(0,0,1));
+if(o.labels){g.font=F(600,24);g.textAlign='center';g.fillStyle='rgba(238,242,250,.85)';[['NVDA',1.16,0,0],['JPM',0,1.13,0],['XOM',0,0,1.16]].forEach(l=>{const p=v.pr(l[1],l[2],l[3]);g.fillText(l[0],p[0],p[1]+8)})}
+const L=[];sets.forEach(s=>{if(s.on===false)return;s.pts.forEach(p=>L.push([v.pr(p[0],p[1],p[2]),p,s]))});
+L.sort((a,b)=>b[0][2]-a[0][2]);let best=null,bd=110;
+for(const [r,p,s] of L){const al=Math.max(.22,Math.min(1,(r[3]-.72)*2.1)),tl=s.tail!=null&&o.tail!==false&&p[3]<=s.tail;
+if(tl){dot(g,r,12*r[3]*v.zoom**.3,'242,138,82',al*.22);dot(g,r,5*r[3]*v.zoom**.3,'242,138,82',al)}else dot(g,r,(s.size||3.3)*r[3]*v.zoom**.3,s.col,al*.85);
+if(o.hover!==false&&v.mx>=0&&!v.drag){const dx=r[0]-v.mx,dy=r[1]-v.my,d=dx*dx+dy*dy;if(d<bd){bd=d;best=[r,p,s]}}}
+if(best){const [r,p,s]=best;g.strokeStyle='#EEF2FA';g.lineWidth=2.5;g.beginPath();g.arc(r[0],r[1],10,0,6.2832);g.stroke();showTip(s.tip(p),v.cX,v.cY)}else if(v.mx>=0&&o.hover!==false)hideTip()}
+const triple=p=>'NVDA '+pct(p[0]*10,1)+' · JPM '+pct(p[1]*10,1)+' · XOM '+pct(p[2]*10,1)+'<br>Portafolio <b>'+pct(p[3])+'</b>';
+const histTip=p=>'<b>'+fdate(DATA.dates[p[4]])+'</b>'+(p[3]<=tailQ?' · <span style="color:#F28A52">5 % peor</span>':'')+'<br>'+triple(p);
+
+/* ---------- visualizaciones por diapositiva ---------- */
+const VIZ={
+morph(){let s=17;const rnd=()=>{s=(s*16807)%2147483647;return s/2147483647},gs=()=>{const u=rnd()||1e-9,v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(6.2832*v)};
+const pts=histPts.map(p=>({n:[gs()*.3,gs()*.3,gs()*.3],p}));
+return[new V3($('#cv-morph'),{fit:v=>Math.min(v.W,v.H)*.4,draw:(v,t)=>{const g=v.g,c=(t/1000)%9,e=STILL?1:ease(c<1.5?0:c<4.5?(c-1.5)/3:c<7.5?1:1-(c-7.5)/1.5);
+g.lineWidth=1;g.strokeStyle='rgba(169,181,210,.12)';for(let k=-4;k<=4;k++){const u=k/4;ln(g,v.pr(u,-1,-1),v.pr(u,-1,1));ln(g,v.pr(-1,-1,u),v.pr(1,-1,u))}
+g.strokeStyle='rgba(169,181,210,.35)';ln(g,v.pr(-1,0,0),v.pr(1,0,0));ln(g,v.pr(0,-1,0),v.pr(0,1,0));ln(g,v.pr(0,0,-1),v.pr(0,0,1));
+const col=[0,1,2].map(k=>Math.round([200,208,226][k]+([91,155,255][k]-[200,208,226][k])*e)).join(',');
+const L=pts.map(o=>{const q=[0,1,2].map(k=>o.n[k]+(o.p[k]-o.n[k])*e);return[v.pr(q[0],q[1],q[2]),o.p]}).sort((a,b)=>b[0][2]-a[0][2]);
+for(const [r,p] of L){const al=Math.max(.22,Math.min(1,(r[3]-.72)*2.1));if(e>.85&&p[3]<=tailQ){dot(g,r,12*r[3],'242,138,82',al*.22*(e-.85)/.15);dot(g,r,5*r[3],'242,138,82',al)}else dot(g,r,3.3*r[3],col,al*.85)}
+g.font=F(600,28);g.textAlign='left';g.fillStyle='rgba(238,242,250,'+(.35+.6*Math.abs(e-.5)*2)+')';g.fillText(e<.5?'Ruido aleatorio z':'Días que parecen reales',28,48)}})]},
+cover(){const s=[{pts:histPts,col:'91,155,255',tail:tailQ,tip:histTip}];return[new V3($('#cv-cover'),{fit:v=>Math.min(v.W,v.H)*.42,draw:v=>cloud(v,s,{labels:false})})]},
+gracias(){const s=[{pts:histPts,col:'91,155,255',tail:tailQ,tip:histTip}];return[new V3($('#cv-gracias'),{yaw:2.2,fit:v=>Math.min(v.W,v.H)*.42,draw:v=>cloud(v,s,{labels:false})})]},
+nube(){const s=[{pts:histPts,col:'91,155,255',tail:tailQ,tip:histTip}],o={labels:true,tail:true},b=$('#n-tail');
+b.onclick=()=>{o.tail=!o.tail;b.classList.toggle('on',o.tail)};return[new V3($('#cv-nube'),{fit:v=>Math.min(v.W,v.H)*.37,draw:v=>cloud(v,s,o)})]},
+esc(){const sets=[{name:'Historial',pts:histPts,col:'200,208,226',tip:histTip,c:'#C8D0E2'},{name:'GAN propia',pts:ganPts,col:'91,155,255',tip:p=>'<b>GAN</b> · escenario '+(p[4]+1)+'<br>'+triple(p),c:'#5B9BFF'},{name:'Monte Carlo',pts:mcPts,col:'242,138,82',tip:p=>'<b>Monte Carlo</b> · escenario '+(p[4]+1)+'<br>'+triple(p),c:'#F28A52'}];
+const box=$('#esc-chips');sets.forEach(s=>{const b=document.createElement('button');b.className='chip';b.innerHTML='<i style="background:'+s.c+'"></i>'+s.name;b.style.alignSelf='flex-start';b.onclick=()=>{s.on=s.on===false;b.classList.toggle('off',s.on===false)};box.appendChild(b)});
+return[new V3($('#cv-esc'),{fit:v=>Math.min(v.W,v.H)*.37,draw:v=>cloud(v,sets,{labels:true})})]},
+bt(){const st={g:true,m:true},bg=$('#bt-g'),bm=$('#bt-m');bg.onclick=()=>{st.g=!st.g;bg.classList.toggle('off',!st.g)};bm.onclick=()=>{st.m=!st.m;bm.classList.toggle('off',!st.m)};
+const FC=[[[0,0,1],[1,0,1],[1,1,1],[0,1,1],.82],[[0,0,0],[1,0,0],[1,1,0],[0,1,0],.68],[[0,0,0],[0,0,1],[0,1,1],[0,1,0],.62],[[1,0,0],[1,0,1],[1,1,1],[1,1,0],.74],[[0,1,0],[1,1,0],[1,1,1],[0,1,1],1.12],[[0,0,0],[1,0,0],[1,0,1],[0,0,1],.5]];
+const poly=(g,P)=>{g.beginPath();g.moveTo(P[0][0],P[0][1]);for(let i=1;i<P.length;i++)g.lineTo(P[i][0],P[i][1]);g.closePath()};
+return[new V3($('#cv-bt'),{yaw:-.42,pitch:.32,dist:30,osc:.24,cx:.53,fit:v=>Math.min(v.W/25,v.H/8.6),draw:v=>{const g=v.g,P=(x,y,z)=>v.pr(x,y+1.9,z);
+poly(g,[P(-10.4,0,-1.4),P(10.4,0,-1.4),P(10.4,0,1.4),P(-10.4,0,1.4)]);g.fillStyle='rgba(169,181,210,.07)';g.fill();g.strokeStyle='rgba(169,181,210,.3)';g.lineWidth=1;g.stroke();
+g.font=F(600,22);g.textAlign='right';for(let k=1;k<=5;k++){const a=P(-10.4,-k,-1.4),b=P(10.4,-k,-1.4);g.setLineDash([5,7]);g.strokeStyle='rgba(169,181,210,.18)';ln(g,a,b);g.setLineDash([]);if(k%2){g.fillStyle='rgba(169,181,210,.85)';g.fillText('−'+k+' %',a[0]-10,a[1]+8)}}
+let hov=-1,hd=45*45;if(v.mx>=0&&!v.drag)BT.forEach((b,i)=>{const c=P(i-9.5,b.r/2,0),dx=c[0]-v.mx,dy=c[1]-v.my,d=dx*dx+dy*dy;if(d<hd){hd=d;hov=i}});
+const Q=[];BT.forEach((b,i)=>{const x0=i-9.8,x1=i-9.2,y0=Math.min(0,b.r),y1=Math.max(0,b.r),ex=b.r<-b.g||b.r<-b.m,col=ex?[255,107,107]:(i===hov?[200,210,235]:[140,150,176]);
+FC.forEach(fc=>{const Pp=fc.slice(0,4).map(q=>P(q[0]?x1:x0,q[1]?y1:y0,q[2]?.3:-.3)),d=(Pp[0][2]+Pp[1][2]+Pp[2][2]+Pp[3][2])/4,s=fc[4];
+Q.push([d,()=>{poly(g,Pp);g.fillStyle='rgb('+col.map(c=>Math.min(255,Math.round(c*s))).join(',')+')';g.fill();g.strokeStyle=i===hov?'rgba(255,255,255,.9)':'rgba(14,22,48,.35)';g.lineWidth=i===hov?2:1;g.stroke()}])})});
+[[st.g,'g',-.8,'91,155,255'],[st.m,'m',.8,'242,138,82']].forEach(L=>{if(!L[0])return;const pts=BT.map((b,i)=>P(i-9.5,-b[L[1]],L[2]));
+for(let i=0;i<19;i++){const a=pts[i],b=pts[i+1];Q.push([(a[2]+b[2])/2,()=>{g.strokeStyle='rgb('+L[3]+')';g.lineWidth=4;ln(g,a,b)}])}
+pts.forEach(p=>Q.push([p[2]-.01,()=>dot(g,p,5.5*p[3],L[3],1)]))});
+Q.sort((a,b)=>b[0]-a[0]).forEach(q=>q[1]());
+if(hov>=0){const b=BT[hov],fg=b.r<-b.g,fm=b.r<-b.m;showTip('<b>'+fdate(b.d)+'</b> · día '+(hov+1)+'<br>Rendimiento real <b>'+pct(b.r)+'</b><br><span style="color:#8FB8FF">VaR GAN '+pct(b.g)+(fg?' · falla':' · cubre')+'</span><br><span style="color:#F6A57A">VaR MC '+pct(b.m)+(fm?' · falla':' · cubre')+'</span>',v.cX,v.cY)}else if(v.mx>=0)hideTip()}})]},
+gan(){const Ls=[8,12,12,3,12,12,1],X=[-6,-4,-2,0,2,4,6],N=[];
+Ls.forEach((n,l)=>{const a=[];for(let k=0;k<n;k++){let y=0,z=0;if(n<=3)y=(k-(n-1)/2)*.75;else{const r=.3*Math.sqrt(n),t=6.2832*k/n;y=r*Math.cos(t);z=r*Math.sin(t)}a.push([X[l],y,z])}N.push(a)});
+const RD=[[-.45,2.3,-.3],[0,2.3,.3],[.45,2.3,-.3]],BL='91,155,255',TL='52,205,190',GR='214,222,238';
+const NAMES=['Ruido z: 8 números al azar','Generador · capa oculta 1 (64 neuronas)','Generador · capa oculta 2 (64 neuronas)','Escenario: 3 rendimientos (NVDA, JPM, XOM)','Discriminador · capa oculta 1 (64 neuronas)','Discriminador · capa oculta 2 (64 neuronas)','Salida de D: probabilidad de que sea real'];
+let s=5;const rnd=()=>{s=(s*16807)%2147483647;return s/2147483647},pick=a=>a[Math.floor(rnd()*a.length)];
+const np=()=>rnd()<.3?{l:3,a:pick(RD),b:pick(N[4]),u:0,r:1}:{l:0,a:pick(N[0]),b:pick(N[1]),u:0,r:0};
+const Pt=[];for(let i=0;i<70;i++){const p=np();if(!p.r){p.l=Math.floor(rnd()*6);p.a=pick(N[p.l]);p.b=pick(N[p.l+1])}p.u=rnd();Pt.push(p)}
+let paused=false;const pb=$('#g-pause');pb.onclick=()=>{paused=!paused;pb.textContent=paused?'Reanudar señales':'Pausar señales';pb.classList.toggle('on',paused)};
+const lab=$('#gan-labels');[['Ruido z','8 números al azar',''],['Generador G','8 → 64 → 64 → 3','c-blue'],['Escenario','3 rendimientos',''],['Discriminador D','3 → 64 → 64 → 1','c-teal'],['¿Real o falso?','probabilidad','c-teal']].forEach((t,i)=>{const d=document.createElement('div');d.className='col';d.style.cssText='position:absolute;top:760px;width:300px;gap:2px;left:'+(960+[-6,-3,0,3,6][i]*110.9-150)+'px';d.innerHTML='<p class="small '+t[2]+'" style="text-align:center"><b>'+t[0]+'</b></p><p class="small soft" style="text-align:center">'+t[1]+'</p>';lab.appendChild(d)});
+return[new V3($('#cv-gan'),{yaw:0,pitch:.24,dist:9,osc:.38,fit:v=>v.W/15,draw:(v,t,dt)=>{const g=v.g,PN=N.map(a=>a.map(p=>v.pr(...p))),PR=RD.map(p=>v.pr(...p));g.lineWidth=1;
+for(let l=0;l<6;l++){g.strokeStyle='rgba('+(l<3?BL:TL)+',.11)';for(const a of PN[l])for(const b of PN[l+1])ln(g,a,b)}
+g.strokeStyle='rgba('+GR+',.2)';g.setLineDash([6,6]);for(const a of PR)for(const b of PN[4])ln(g,a,b);g.setLineDash([]);
+for(const p of Pt){if(!paused)p.u+=dt*1.1;if(p.u>=1){if(p.l>=5)Object.assign(p,np());else{p.l++;p.a=p.b;p.b=pick(N[p.l+1]);p.r=0;p.u=0}}
+const A=v.pr(...p.a),B=v.pr(...p.b),q=[A[0]+(B[0]-A[0])*p.u,A[1]+(B[1]-A[1])*p.u],col=p.r?GR:(p.l<3?BL:TL);dot(g,q,11*A[3],col,.22);dot(g,q,4*A[3],col,1)}
+let hl=-1,hd=26*26;PN.forEach((a,l)=>a.forEach(p=>{const col=l<3?BL:(l==3?GR:TL);dot(g,p,(l==6?17:7.5)*p[3],col,.95);if(v.mx>=0&&!v.drag){const dx=p[0]-v.mx,dy=p[1]-v.my,d=dx*dx+dy*dy;if(d<hd){hd=d;hl=l}}}));
+let hr=false;PR.forEach(p=>{dot(g,p,13*p[3],GR,.15);dot(g,p,8*p[3],GR,.95);if(v.mx>=0){const dx=p[0]-v.mx,dy=p[1]-v.my;if(dx*dx+dy*dy<hd){hr=true}}});
+const o=PN[6][0];dot(g,o,34*(1+.25*Math.sin(t/1000*3))*o[3],TL,.16);
+if(hr)showTip('<b>Datos reales</b><br>Días de la ventana de 500 que D recibe para comparar',v.cX,v.cY);else if(hl>=0)showTip('<b>'+NAMES[hl]+'</b>'+(hl==1||hl==2||hl==4||hl==5?'<br>se muestran 12 de 64':''),v.cX,v.cY);else if(v.mx>=0)hideTip()}})]},
+var(){const sl=$('#v-sl'),nb=$('#v-norm');let showN=false;nb.onclick=()=>{showN=!showN;nb.classList.toggle('on',showN);$('#v-nbox').style.display=showN?'flex':'none';upd()};
+const m=mean(HP),s=sdv(HP),lo=-7.5,hi=7.5,bw=.25,nb2=Math.round((hi-lo)/bw),cnt=new Array(nb2).fill(0);HP.forEach(x=>{cnt[Math.max(0,Math.min(nb2-1,Math.floor((x-lo)/bw)))]++});const cmax=Math.max(...cnt);
+let st={};function upd(){const c=+sl.value,a=1-c/100,q=quant(HPs,a),v=-q,tl=HP.filter(x=>x<=q),es=-mean(tl),z=invN(a),nv=-(m+z*s),ne=-m+s*phi(z)/a;st={v,es,nv,ne};
+$('#v-conf').textContent=(c%1?c.toFixed(1):c)+' %';$('#v-var').textContent=pct(v);$('#v-es').textContent=pct(es);$('#v-days').textContent=tl.length+' de 500 días caen en la cola.';
+$('#v-nvar').textContent=pct(nv);$('#v-nes').textContent=pct(ne);
+$('#v-msg').textContent=(nv>=v?'Aquí la normal da un VaR más alto que la historia: parece conservadora':'Aquí la normal da un VaR más bajo que la historia: se queda corta')+(ne>=es?', y su ES también es mayor.':'. Su ES ('+pct(ne)+') subestima la pérdida promedio de la cola.')}
+sl.addEventListener('input',upd);upd();
+return[new C2($('#cv-var'),(o,t)=>{const g=o.g,W=o.W,H=o.H,pl=20,pr=20,base=H-60,X=x=>pl+(x-lo)/(hi-lo)*(W-pl-pr),k=ease((t-o.t0-300)/900),bwp=(W-pl-pr)/nb2;
+for(let i=0;i<nb2;i++){const c0=lo+i*bw,h=cnt[i]/cmax*(base-40)*k;g.fillStyle=c0+bw<=-st.v+1e-9?'#E0773F':'#9AA6C4';g.fillRect(X(c0)+1,base-h,bwp-2,h)}
+g.strokeStyle='#B9B4A8';g.lineWidth=2;ln(g,[pl,base],[W-pr,base]);g.font=F(500,22);g.fillStyle='#4A5472';g.textAlign='center';for(let x=-6;x<=6;x+=2)g.fillText(pct(x,0).replace(' %','')+' %',X(x),base+34);
+if(showN){g.strokeStyle='#1E5BC6';g.lineWidth=3;g.beginPath();for(let i=0;i<=200;i++){const x=lo+(hi-lo)*i/200,y=500*bw*phi((x-m)/s)/s/cmax*(base-40)*k;i?g.lineTo(X(x),base-y):g.moveTo(X(x),base-y)}g.stroke();
+g.setLineDash([8,8]);g.strokeStyle='#1E5BC6';ln(g,[X(-st.nv),60],[X(-st.nv),base]);g.setLineDash([]);g.fillStyle='#1E5BC6';g.textAlign='center';g.font=F(700,22);g.fillText('normal',X(-st.nv),48)}
+g.setLineDash([10,8]);g.strokeStyle='#121A33';g.lineWidth=3;ln(g,[X(-st.v),showN?80:40],[X(-st.v),base]);g.setLineDash([]);g.fillStyle='#121A33';g.font=F(700,24);g.textAlign='right';g.fillText('−VaR '+pct(st.v),X(-st.v)-10,showN?100:60)})]},
+colas(){const ser=[['NVDA',HR.slice(0,500).map(r=>r[0]),'#5B9BFF'],['JPM',HR.slice(0,500).map(r=>r[1]),'#5B9BFF'],['XOM',HR.slice(0,500).map(r=>r[2]),'#5B9BFF'],['Portafolio',HP,'#F28A52']].map(a=>({n:a[0],x:a[1],c:a[2],k:kurt(a[1]),m:mean(a[1]),s:sdv(a[1])}));
+let sel=0,t1=-1e9;const list=$('#k-list');
+ser.forEach((s,i)=>{const r=document.createElement('div');r.className='row in';r.style.cssText='--i:'+(i+1)+';align-items:center;gap:22px;cursor:pointer;padding:14px 18px;border-radius:16px;transition:background .2s';r.innerHTML='<p class="num" style="width:220px;font-size:34px">'+s.n+'</p><div style="width:260px;height:44px;display:flex"><div style="width:'+(s.k/12*260)+'px;background:'+s.c+';border-radius:8px"></div></div><p class="num" style="font-size:34px;color:'+s.c+'">'+s.k.toFixed(2)+'</p>';r.onclick=()=>{sel=i;t1=performance.now();mark()};list.appendChild(r)});
+const nr=document.createElement('div');nr.className='row';nr.style.cssText='align-items:center;gap:22px;padding:14px 18px';nr.innerHTML='<p class="num soft" style="width:220px;font-size:34px">Normal</p><div style="width:260px;height:44px;display:flex;align-items:center"><div style="width:5px;height:44px;background:#A9B5D2;border-radius:3px"></div></div><p class="num soft" style="font-size:34px">0</p>';list.appendChild(nr);
+const pill=document.createElement('p');pill.className='pill';pill.style.alignSelf='flex-start';pill.style.marginTop='12px';pill.textContent='Jarque–Bera rechaza la normalidad: p < 0.001';list.appendChild(pill);
+function mark(){[...list.children].forEach((c,i)=>c.style.background=i===sel?'rgba(255,255,255,.08)':'transparent');const s=ser[sel],o=s.x.filter(x=>Math.abs(x-s.m)>3*s.s).length;
+$('#k-info').innerHTML='<b style="color:#EEF2FA">'+s.n+'</b> · σ '+pct(s.s)+' · mínimo '+pct(Math.min(...s.x),1)+' · máximo '+pct(Math.max(...s.x),1)+' · <span style="color:#F28A52"><b>'+o+' días</b> a más de 3σ</span> (una normal esperaría 1.35)'}
+mark();
+return[new C2($('#cv-colas'),(o,t)=>{const g=o.g,W=o.W,H=o.H,s=ser[sel],ext=Math.max(Math.abs(Math.min(...s.x)),Math.max(...s.x))*1.05,lo=-ext,hi=ext,nb=60,bw=(hi-lo)/nb,cnt=new Array(nb).fill(0);
+s.x.forEach(x=>cnt[Math.max(0,Math.min(nb-1,Math.floor((x-lo)/bw)))]++);const base=H-56,top=24,X=x=>10+(x-lo)/(hi-lo)*(W-20),pk=Math.max(...cnt,500*bw*phi(0)/s.s),k=ease((t-Math.max(o.t0+300,t1))/700),Y=c=>c/pk*(base-top)*k;
+for(let i=0;i<nb;i++){const c0=lo+i*bw,c1=c0+bw,out=c1<s.m-3*s.s||c0>s.m+3*s.s;g.fillStyle=out?'#F28A52':'rgba(91,155,255,.75)';const h=Y(cnt[i]);g.fillRect(X(c0)+1,base-h,(W-20)/nb-2,h);if(out&&cnt[i]){g.fillStyle='rgba(242,138,82,.25)';g.beginPath();g.arc(X(c0+bw/2),base-h-10,9,0,6.3);g.fill()}}
+g.strokeStyle='#EEF2FA';g.lineWidth=3;g.beginPath();for(let i=0;i<=240;i++){const x=lo+(hi-lo)*i/240,y=Y(500*bw*phi((x-s.m)/s.s)/s.s);i?g.lineTo(X(x),base-y):g.moveTo(X(x),base-y)}g.stroke();
+g.strokeStyle='rgba(169,181,210,.5)';g.lineWidth=2;ln(g,[10,base],[W-10,base]);g.font=F(500,22);g.fillStyle='#A9B5D2';g.textAlign='center';const stp=ext>12?5:ext>6?2:1;for(let x=-Math.floor(ext/stp)*stp;x<=ext;x+=stp)g.fillText((x<0?'−':'')+Math.abs(x)+' %',X(x),base+34);
+g.textAlign='right';g.font=F(600,22);g.fillStyle='#EEF2FA';g.fillText('— normal con la misma σ',W-14,top+10)})]},
+precios(){const PX=DATA.PX,n=PX.length,cols=['#3D7BE0','#E0773F','#14857A'],names=['NVDA','JPM','XOM'];let mn=1e9,mx=-1e9;PX.forEach(r=>r.forEach(v=>{mn=Math.min(mn,v);mx=Math.max(mx,v)}));mn=Math.floor(mn/10)*10;mx=Math.ceil(mx/10)*10;
+return[new C2($('#cv-px'),(o,t)=>{const g=o.g,W=o.W,H=o.H,l=70,r=110,top=14,base=H-44,X=i=>l+i/(n-1)*(W-l-r),Y=v=>base-(v-mn)/(mx-mn)*(base-top),k=ease((t-o.t0-500)/1400),lim=Math.max(1,Math.floor((n-1)*k));
+g.fillStyle='rgba(242,138,82,.12)';g.fillRect(X(n-21),top,X(n-1)-X(n-21),base-top);g.fillStyle='#B9501C';g.font=F(600,20);g.textAlign='center';g.fillText('backtest',X(n-11),top+22);
+g.font=F(500,20);g.fillStyle='#4A5472';g.textAlign='right';g.strokeStyle='#E4E0D6';g.lineWidth=1;for(let v=mn;v<=mx;v+=20){ln(g,[l,Y(v)],[W-r,Y(v)]);g.fillText(v,l-12,Y(v)+7)}
+g.textAlign='center';for(let i=0;i<n;i+=63)g.fillText(fdate(DATA.pxDates[i]).replace(/^\d+-/,''),X(i),base+30);
+names.forEach((nm,j)=>{g.strokeStyle=cols[j];g.lineWidth=3;g.beginPath();for(let i=0;i<=lim;i++){const y=Y(PX[i][j]);i?g.lineTo(X(i),y):g.moveTo(X(i),y)}g.stroke();if(k>=1){g.fillStyle=cols[j];g.textAlign='left';g.font=F(700,22);g.fillText(nm,X(n-1)+10,Y(PX[n-1][j])+(j==1?-6:j==2?14:6))}});
+if(o.mx>=l&&o.mx<=W-r){const i=Math.round((o.mx-l)/(W-l-r)*(n-1));g.strokeStyle='rgba(18,26,51,.4)';g.lineWidth=1.5;ln(g,[X(i),top],[X(i),base]);names.forEach((nm,j)=>dot(g,[X(i),Y(PX[i][j])],6,cols[j]=='#3D7BE0'?'61,123,224':cols[j]=='#E0773F'?'224,119,63':'20,133,122',1));
+showTip('<b>'+fdate(DATA.pxDates[i])+'</b>'+(i>=n-20?' · <span style="color:#F6A57A">backtest</span>':'')+'<br>'+names.map((nm,j)=>nm+' '+PX[i][j].toFixed(1)).join(' · '),o.cX,o.cY)}else if(o.mx>=0)hideTip()})]},
+train(){const LD=DATA.LD,LG=DATA.LG,n=LD.length;
+return[new C2($('#cv-train'),(o,t)=>{const g=o.g,W=o.W,H=o.H,l=64,top=20,base=H-56,X=i=>l+i/(n-1)*(W-l-16),Y=v=>base-(v-.6)/(1.0)*(base-top),k=ease((t-o.t0-300)/1600),lim=Math.floor((n-1)*k);
+g.strokeStyle='#E4E0D6';g.lineWidth=1;g.font=F(500,22);g.fillStyle='#4A5472';g.textAlign='right';[.8,1,1.2,1.4].forEach(v=>{ln(g,[l,Y(v)],[W-16,Y(v)]);g.fillText(v.toFixed(1),l-12,Y(v)+7)});
+g.textAlign='center';[0,100,200,300,400].forEach(e=>g.fillText(e,X(Math.min(n-1,e)),base+34));
+g.setLineDash([8,8]);g.lineWidth=2;g.strokeStyle='rgba(20,133,122,.6)';ln(g,[l,Y(1.376)],[W-16,Y(1.376)]);g.strokeStyle='rgba(30,91,198,.6)';ln(g,[l,Y(.799)],[W-16,Y(.799)]);g.setLineDash([]);
+[[LD,'#14857A'],[LG,'#1E5BC6']].forEach(s=>{g.strokeStyle=s[1];g.lineWidth=3;g.beginPath();for(let i=0;i<=lim;i++){i?g.lineTo(X(i),Y(s[0][i])):g.moveTo(X(i),Y(s[0][i]))}g.stroke()});
+let i=n-1;if(o.mx>=l){i=Math.max(0,Math.min(n-1,Math.round((o.mx-l)/(W-l-16)*(n-1))));g.strokeStyle='rgba(18,26,51,.35)';g.lineWidth=1.5;ln(g,[X(i),top],[X(i),base]);dot(g,[X(i),Y(LD[i])],7,'20,133,122',1);dot(g,[X(i),Y(LG[i])],7,'30,91,198',1)}
+$('#e-ep').textContent=i+1;$('#e-d').textContent=LD[i].toFixed(2);$('#e-g').textContent=LG[i].toFixed(2)})]},
+kupiec(){const n=20,a=.05,pr=[];for(let k=0;k<=6;k++){let c=1;for(let j=0;j<k;j++)c=c*(n-j)/(j+1);pr.push(c*a**k*(1-a)**(n-k))}
+const box=$('#kp-chart'),tag={2:['MC','c-orange'],3:['GAN','c-blue']};let sel=3;
+box.innerHTML='<div class="row" style="height:460px;gap:22px;align-items:flex-end;border-bottom:2px solid #B9B4A8">'+pr.map((p,k)=>'<div class="col kp" data-k="'+k+'" style="flex:1;gap:8px;cursor:pointer;height:100%;justify-content:flex-end">'+(tag[k]?'<p class="small '+tag[k][1]+'" style="text-align:center"><b>'+tag[k][0]+'</b></p>':'')+'<p class="small" style="text-align:center">'+(p*100).toFixed(1)+' %</p><div class="bar" style="--i:'+k+';height:'+Math.max(3,p*1000)+'px;border-radius:10px 10px 0 0;background:'+(k>=4?'#C2363B':'#9AA6C4')+'"></div></div>').join('')+'</div><div class="row" style="gap:22px">'+pr.map((p,k)=>'<p class="small kpl'+(k>=4?' c-red':'')+'" data-k="'+k+'" style="flex:1;text-align:center;cursor:pointer;font-weight:700;border-radius:12px;padding:6px 0">'+k+'</p>').join('')+'</div><p class="small soft">Probabilidad de ver k excepciones en 20 días si el modelo fuera perfecto · <span class="c-red"><b>rojo: se rechaza al 5 %</b></span></p>';
+function upd(){const x=sel,ph=x/n,l0=(n-x)*Math.log(1-a)+(x?x*Math.log(a):0),l1=(x<n?(n-x)*Math.log(1-ph):0)+(x?x*Math.log(ph):0),LR=-2*(l0-l1),p=erfc(Math.sqrt(LR/2));
+$('#kp-k').textContent=x+(x===1?' excepción':' excepciones');$('#kp-lr').textContent=LR.toFixed(2);$('#kp-p').textContent=p.toFixed(3);const d=$('#kp-dec');d.textContent=p<.05?'Se rechaza el modelo al 5 %':'No se rechaza el modelo';d.className='lead '+(p<.05?'c-red':'c-blue');
+$$('#kp-chart .kp .bar').forEach((b,k)=>b.style.outline=k===x?'4px solid #121A33':'none');$$('#kp-chart .kpl').forEach((b,k)=>b.style.background=k===x?'#E6E2D7':'transparent')}
+box.addEventListener('click',e=>{const t=e.target.closest('[data-k]');if(t){sel=+t.dataset.k;upd()}});upd();return[]},
+};
+/* introducción: reloj y juego */
+(function(){let h='';for(let i=0;i<60;i++){const big=i%5==0;h+='<line x1="200" y1="'+(big?36:32)+'" x2="200" y2="'+(big?66:44)+'" stroke="'+(big?'#A9B5D2':'rgba(169,181,210,.4)')+'" stroke-width="'+(big?5:2)+'" stroke-linecap="round" transform="rotate('+(i*6)+' 200 200)"/>'}$('#ticks').innerHTML=h})();
+(function(){const G=[['G',415,[-2.32,-2.31,-1.03]],['R','2025-06-18',[.94,1.63,-.71]],['R','2025-04-04',[-7.64,-7.78,-7.47],'Caída por los aranceles de EE. UU.'],['G',14,[.90,1.57,.09]],['G',123,[-5.96,-3.38,-2.17],'El peor de sus 500 escenarios'],['R','2025-04-09',[17.16,7.75,4.87],'Rebote por la pausa de los aranceles']];
+const L='ABCDEF',box=$('#game');
+box.innerHTML=G.map((c,i)=>{const pf=(Math.exp(c[2][0]/100)+Math.exp(c[2][1]/100)+Math.exp(c[2][2]/100)-3)/3*100,R=c[0]=='R';
+return '<div class="flip in" style="--i:'+(i+1)+'"><div class="fi"><div class="fa"><div class="row" style="justify-content:space-between;align-items:baseline"><p class="label">Día '+L[i]+'</p><p class="small soft">¿real o GAN?</p></div>'+
+['NVDA','JPM','XOM'].map((tk,k)=>{const v=c[2][k],w=Math.min(1,Math.abs(v)/10)*110;return '<div class="row" style="gap:16px;align-items:center"><p class="small" style="width:80px"><b>'+tk+'</b></p><div style="width:220px;height:16px;position:relative;flex:none"><div style="position:absolute;left:109px;top:-5px;width:2px;height:26px;background:#B9B4A8"></div><div style="position:absolute;top:0;height:16px;border-radius:4px;'+(v<0?'right:110px;background:#E0773F':'left:111px;background:#3D7BE0')+';width:'+w+'px"></div></div><p class="small" style="width:120px;text-align:right"><b>'+pct(v)+'</b></p></div>'}).join('')+
+'</div><div class="fb '+(R?'real':'fake')+'"><p class="label" style="opacity:.8">Día '+L[i]+' · '+(R?'día real':'inventado por la GAN')+'</p><p class="mid">'+(R?'REAL':'GAN')+'</p><p class="small">'+(R?fdate(c[1]):'Escenario '+c[1]+' de 500')+' · portafolio '+pct(pf)+(c[3]?'<br>'+c[3]:'')+'</p></div></div></div>'}).join('');
+$$('#game .flip').forEach(f=>f.addEventListener('click',()=>f.classList.toggle('on')));
+const b=$('#game-all');b.onclick=()=>{const all=$$('#game .flip'),any=all.some(f=>!f.classList.contains('on'));all.forEach(f=>f.classList.toggle('on',any));b.textContent=any?'Ocultar todas':'Revelar todas'}})();
+/* gráficas HTML estáticas */
+(function(){const c=$('#t0-chart'),D=[['Historial','#8C96B0',1.69,2.92,''],['GAN propia','#3D7BE0',1.81,2.33,'c-blue'],['Monte Carlo','#E0773F',2.19,2.87,'c-orange']];
+c.innerHTML='<div class="row" style="gap:28px;align-items:center"><div class="row" style="gap:10px;align-items:center"><i style="width:28px;height:28px;border-radius:6px;background:#4A5472"></i><p class="small">VaR 95 %</p></div><div class="row" style="gap:10px;align-items:center"><i style="width:28px;height:28px;border-radius:6px;background:#4A5472;opacity:.4"></i><p class="small">ES 95 %</p></div></div>'+
+'<div class="row" style="height:500px;gap:64px;align-items:flex-end;border-bottom:2px solid #B9B4A8">'+D.map((d,i)=>'<div class="row" style="flex:1;gap:16px;align-items:flex-end;justify-content:center">'+[[d[2],1,'VaR'],[d[3],.42,'ES']].map((b,j)=>'<div class="col" style="width:112px;gap:8px" title="'+d[0]+' · '+b[2]+' '+b[0].toFixed(2)+' %"><p class="small" style="text-align:center">'+(j?'':'<b>')+b[0].toFixed(2)+(j?'':'</b>')+'</p><div class="bar tilt" style="--i:'+(i*2+j)+';height:'+Math.round(b[0]*150)+'px;border-radius:10px 10px 0 0;background:'+d[1]+';opacity:'+b[1]+'"></div></div>').join('')+'</div>').join('')+'</div>'+
+'<div class="row" style="gap:64px">'+D.map(d=>'<p class="small '+d[4]+'" style="flex:1;text-align:center"><b>'+d[0]+'</b></p>').join('')+'</div>'})();
+(function(){const P=[['Monte Carlo','supone normalidad','c-orange','#B9501C','#FBE9DF','#F0C7AF',['<b>500 días</b> reales','Estimar media <b>μ</b> y covarianza <b>Σ</b>','Normal multivariada: <b>r = μ + Lz</b>','<b>500 escenarios</b>']],['GAN propia','aprende la forma','c-blue','#1E5BC6','#E3ECFB','#C2D4F3',['<b>500 días</b> reales','Entrenar <b>G</b> contra <b>D</b>, 400 épocas','Ruido al azar <b>z</b> entra al generador <b>G</b>','<b>500 escenarios</b>']]];
+$('#pipes').innerHTML=P.map((p,r)=>'<div class="row in" style="--i:'+(r+1)+';gap:0;align-items:stretch"><div class="col" style="width:250px;gap:6px;justify-content:center"><p class="label '+p[2]+'">'+p[0]+'</p><p class="small soft">'+p[1]+'</p></div>'+p[6].map((s,i)=>(i?'<svg width="70" height="40" viewBox="0 0 70 40" style="align-self:center;flex:none"><path d="M6 20 H54" stroke="'+p[3]+'" stroke-width="4"/><path d="M50 10 L64 20 L50 30 Z" fill="'+p[3]+'"/></svg>':'')+'<div class="card tilt" style="flex:1;padding:24px 26px;justify-content:center'+(i==3?';background:'+p[4]+';border-color:'+p[5]:'')+'"><p class="small">'+s+'</p></div>').join('')+'</div>').join('')+
+'<div class="row step" style="gap:24px;align-items:center;margin-left:250px"><p class="pill">Mismo paso final</p><p class="small">VaR = la pérdida del 5 % peor de los 500 escenarios del portafolio. Solo cambia el modelo que los genera.</p></div>'})();
+
+/* ---------- navegación ---------- */
+const views={},active=[];
+function fit(){SCALE=Math.min(innerWidth/1920,innerHeight/1080);stage.style.transform='scale('+SCALE+')';Object.values(views).flat().forEach(v=>v.resize())}
+function show(i,dir=1){i=Math.max(0,Math.min(slides.length-1,i));const s=slides[i];
+slides.forEach((x,k)=>{x.classList.toggle('active',k===i);x.classList.toggle('past',k<i)});
+s.querySelectorAll('.step').forEach(e=>e.classList.toggle('on',dir<0||STILL));cur=i;hideTip();
+const key=s.dataset.viz;active.length=0;if(key){if(!views[key])views[key]=VIZ[key]();const t=performance.now();views[key].forEach(v=>{v.resize();v.enter(t);active.push(v)})}
+$('#bar').style.width=((i+1)/slides.length*100)+'%';$('#count').textContent=(i+1)+' / '+slides.length;$('#who').textContent='Presenta: '+s.dataset.presenter;
+$('#notes').innerHTML='<b>'+s.dataset.presenter+'</b> — '+s.dataset.notes;history.replaceState(null,'',location.search+'#'+(i+1));
+$$('#menu-list li').forEach((l,k)=>l.classList.toggle('cur',k===i))}
+function next(){const st=$$('.slide.active .step:not(.on)');if(st.length){st[0].classList.add('on');return}if(cur<slides.length-1)show(cur+1,1)}
+function prev(){const on=$$('.slide.active .step.on');if(on.length){on[on.length-1].classList.remove('on');return}if(cur>0)show(cur-1,-1)}
+let last=performance.now();function loop(t){const dt=Math.min(.05,(t-last)/1000);last=t;active.forEach(v=>v.frame(t,dt));requestAnimationFrame(loop)}
+/* menú */
+$('#menu-list').innerHTML=slides.map((s,i)=>'<li data-i="'+i+'">'+s.dataset.title+'<small>'+s.dataset.presenter+'</small></li>').join('');
+$('#menu-list').addEventListener('click',e=>{const l=e.target.closest('li');if(l){show(+l.dataset.i);$('#menu').classList.remove('show')}});
+$('#menu').addEventListener('click',e=>{if(e.target.id==='menu')$('#menu').classList.remove('show')});
+const toggleMenu=()=>$('#menu').classList.toggle('show');
+const toggleNotes=()=>$('#notes').classList.toggle('show');
+const full=()=>{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen().catch(()=>{})};
+$('#b-prev').onclick=prev;$('#b-next').onclick=next;$('#b-idx').onclick=toggleMenu;$('#b-notes').onclick=toggleNotes;$('#b-full').onclick=full;
+$$('[data-go]').forEach(c=>c.addEventListener('click',()=>show(+c.dataset.go-1)));
+addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'&&/Arrow/.test(e.key))return;const k=e.key;
+if(k==='ArrowRight'||k==='PageDown'||k===' '||k==='Enter'){e.preventDefault();next()}else if(k==='ArrowLeft'||k==='PageUp'||k==='Backspace'){e.preventDefault();prev()}
+else if(k==='Home')show(0);else if(k==='End')show(slides.length-1);else if(k==='n'||k==='N')toggleNotes();else if(k==='f'||k==='F')full();else if(k==='g'||k==='G')toggleMenu();else if(k==='Escape')$('#menu').classList.remove('show')});
+/* deslizar en pantallas táctiles (fuera de los lienzos) */
+let sx=null;stage.addEventListener('pointerdown',e=>{if(e.target.closest('canvas,button,input,[data-k],[data-go]'))return;sx=e.clientX});stage.addEventListener('pointerup',e=>{if(sx==null)return;const d=e.clientX-sx;sx=null;if(Math.abs(d)>80)(d<0?next:prev)()});
+/* tarjetas con inclinación 3D */
+$$('.tilt').forEach(c=>{c.addEventListener('pointermove',e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;c.style.transform='perspective(900px) rotateX('+(-y*10)+'deg) rotateY('+(x*12)+'deg) translateZ(10px)'});c.addEventListener('pointerleave',()=>c.style.transform='')});
+/* ocultar HUD en reposo */
+let hudT;const hud=$('#hud'),help=$('#help');const wake=()=>{hud.classList.remove('hide');help.style.opacity=.8;clearTimeout(hudT);hudT=setTimeout(()=>{hud.classList.add('hide');help.style.opacity=0},2600)};addEventListener('pointermove',wake);wake();
+addEventListener('resize',fit);fit();show(Math.max(0,(parseInt(location.hash.slice(1))||1)-1));requestAnimationFrame(loop);
+</script>
+</body>
+</html>
